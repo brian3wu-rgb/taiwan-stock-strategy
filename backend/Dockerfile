@@ -41,4 +41,4 @@ USER appuser
 EXPOSE 8000
 
 # 生產模式：單執行緒 worker（掃描使用 asyncio，不需多 worker）
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]
