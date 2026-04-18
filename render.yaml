@@ -26,8 +26,6 @@ services:
     dockerfilePath: ./frontend/Dockerfile
     dockerContext: ./frontend
     plan: free
-    buildArgs:
-      NEXT_PUBLIC_API_URL: https://taiwan-stock-backend.onrender.com
     envVars:
       - key: NEXT_PUBLIC_API_URL
         value: https://taiwan-stock-backend.onrender.com
