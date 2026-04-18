@@ -1,0 +1,54 @@
+version: '3.9'
+
+# ─────────────────────────────────────────────
+#  台股策略選股 — 本地一鍵啟動
+#  使用方式：docker compose up --build
+# ─────────────────────────────────────────────
+
+services:
+
+  # ── 後端 FastAPI ──────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: stock-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: /app/data/stocks.db
+      CORS_ORIGINS: http://localhost:3000
+      SCAN_LIMIT:   "0"       # 0 = 全掃；正整數 = 快速測試
+      MAX_WORKERS:  "3"
+      BATCH_SIZE:   "40"
+      HISTORY_DAYS: "160"
+    volumes:
+      # 持久化 SQLite 資料庫
+      - stock_data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout:  10s
+      retries:  3
+
+  # ── 前端 Next.js ──────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://backend:8000
+    container_name: stock-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  stock_data:
+    driver: local

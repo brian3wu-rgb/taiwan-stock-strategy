@@ -1,0 +1,33 @@
+# ─────────────────────────────────────────────────────────────
+#  Railway 部署設定
+#  https://railway.app
+#
+#  說明：Railway 每個服務獨立部署，需建立兩個 Service：
+#    1. backend  → 指向 ./backend 目錄
+#    2. frontend → 指向 ./frontend 目錄
+# ─────────────────────────────────────────────────────────────
+
+[build]
+builder = "DOCKERFILE"
+
+[deploy]
+startCommand = "uvicorn main:app --host 0.0.0.0 --port $PORT"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[[services]]
+name = "backend"
+source = "backend"
+
+[services.build]
+dockerfilePath = "backend/Dockerfile"
+
+[services.deploy]
+startCommand = "uvicorn main:app --host 0.0.0.0 --port $PORT"
+
+[services.variables]
+DATABASE_URL  = "/app/data/stocks.db"
+MAX_WORKERS   = "2"
+BATCH_SIZE    = "40"
+HISTORY_DAYS  = "160"
+SCAN_LIMIT    = "0"
