@@ -147,6 +147,22 @@ def get_all_tw_stocks(limit: int = 0) -> List[Dict]:
 
 
 # ─────────────────────────────────────────────
+#  HTTP Session（帶瀏覽器 UA，繞過雲端 IP 封鎖）
+# ─────────────────────────────────────────────
+
+_SESSION = requests.Session()
+_SESSION.headers.update({
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+})
+
+
+# ─────────────────────────────────────────────
 #  批次下載（同步，在執行緒池中執行）
 # ─────────────────────────────────────────────
 
@@ -166,48 +182,27 @@ def _flatten_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 def _download_batch_sync(symbols: List[str]) -> Dict[str, pd.DataFrame]:
     """
-    [同步] 下載一批股票的歷史資料。
-    - 使用日期範圍而非 period 字串（速度更快、更精確）
-    - 回傳 {symbol: DataFrame}，只保留資料筆數 ≥ 105 的股票
+    [同步] 逐支下載股票歷史資料，使用自訂 Session 帶瀏覽器 UA。
+    回傳 {symbol: DataFrame}，只保留資料筆數 ≥ 105 的股票。
     """
     if not symbols:
         return {}
 
     start_date, end_date = _build_date_range()
+    result: Dict[str, pd.DataFrame] = {}
 
-    try:
-        if len(symbols) == 1:
-            df = yf.download(
-                symbols[0],
-                start=start_date, end=end_date,
-                auto_adjust=True, progress=False,
-            )
+    for sym in symbols:
+        try:
+            ticker = yf.Ticker(sym, session=_SESSION)
+            df = ticker.history(start=start_date, end=end_date, auto_adjust=True)
             df = _flatten_columns(df)
-            return {symbols[0]: df} if len(df) >= 105 else {}
+            if not df.empty and len(df) >= 105:
+                result[sym] = df
+            time.sleep(0.5)   # 每支之間稍停，避免觸發速率限制
+        except Exception as e:
+            logger.error("yfinance: Failed to get ticker '%s' reason: %s", sym, e)
 
-        raw = yf.download(
-            symbols,
-            start=start_date, end=end_date,
-            group_by="ticker",
-            auto_adjust=True,
-            progress=False,
-            threads=True,          # yfinance 內建執行緒加速
-        )
-
-        result: Dict[str, pd.DataFrame] = {}
-        for sym in symbols:
-            try:
-                df = raw[sym].copy().dropna(how="all")
-                df = _flatten_columns(df)
-                if len(df) >= 105:
-                    result[sym] = df
-            except (KeyError, Exception):
-                pass
-        return result
-
-    except Exception as e:
-        logger.error("Batch download failed: %s", e)
-        return {}
+    return result
 
 
 # ─────────────────────────────────────────────
