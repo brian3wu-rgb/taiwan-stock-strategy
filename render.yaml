@@ -1,28 +1,18 @@
-# ─────────────────────────────────────────────────────────────
-#  Render 部署設定（render.yaml）
-#  https://render.com
-#
-#  使用方式：
-#    1. 將整個 repo push 到 GitHub
-#    2. 在 Render Dashboard → New → Blueprint
-#    3. 選擇 repo，Render 會自動讀取此檔案
-# ─────────────────────────────────────────────────────────────
-
 services:
 
-  # ── 後端 (FastAPI) ──────────────────────────────────────────
+  # ── 後端 (FastAPI) ────────────────────────────────────────────────────
   - type: web
     name: taiwan-stock-backend
     runtime: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    plan: free       # 可改為 starter / standard
+    plan: free
 
     envVars:
       - key:   DATABASE_URL
         value: /app/data/stocks.db
       - key:   CORS_ORIGINS
-        value: https://taiwan-stock-frontend.onrender.com   # ← 改成你的前端 URL
+        value: https://taiwan-stock-frontend.onrender.com
       - key:   MAX_WORKERS
         value: "2"
       - key:   BATCH_SIZE
@@ -32,14 +22,9 @@ services:
       - key:   SCAN_LIMIT
         value: "0"
 
-    disk:
-      name: stock-data
-      mountPath: /app/data
-      sizeGB: 1
-
     healthCheckPath: /health
 
-  # ── 前端 (Next.js) ──────────────────────────────────────────
+  # ── 前端 (Next.js) ────────────────────────────────────────────────────
   - type: web
     name: taiwan-stock-frontend
     runtime: docker
@@ -48,8 +33,7 @@ services:
     plan: free
 
     buildArgs:
-      - key:   NEXT_PUBLIC_API_URL
-        value: https://taiwan-stock-backend.onrender.com   # ← 改成你的後端 URL
+      NEXT_PUBLIC_API_URL: https://taiwan-stock-backend.onrender.com
 
     envVars:
       - key:   NEXT_PUBLIC_API_URL
