@@ -147,7 +147,7 @@ def get_all_tw_stocks(limit: int = 0) -> List[Dict]:
 
 
 # ─────────────────────────────────────────────
-#  HTTP Session（帶瀏覽器 UA，繞過雲端 IP 封鎖）
+#  HTTP Session（官方 TWSE/TPEx API 用）
 # ─────────────────────────────────────────────
 
 _SESSION = requests.Session()
@@ -157,9 +157,113 @@ _SESSION.headers.update({
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/120.0.0.0 Safari/537.36"
     ),
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8",
 })
+
+
+# ─────────────────────────────────────────────
+#  官方 TWSE / TPEx API 資料取得
+# ─────────────────────────────────────────────
+
+def _fetch_twse_month(stock_no: str, year: int, month: int) -> List[Dict]:
+    """從證交所 API 抓取單月日 K 資料。"""
+    date_str = f"{year}{month:02d}01"
+    url = (
+        f"https://www.twse.com.tw/exchangeReport/STOCK_DAY"
+        f"?response=json&date={date_str}&stockNo={stock_no}"
+    )
+    try:
+        resp = _SESSION.get(url, timeout=12)
+        data = resp.json()
+        if data.get("stat") != "OK" or not data.get("data"):
+            return []
+        rows = []
+        for row in data["data"]:
+            try:
+                parts = row[0].strip().split("/")
+                yr = int(parts[0]) + 1911
+                dt = pd.Timestamp(f"{yr}-{parts[1]}-{parts[2]}")
+                rows.append({
+                    "Date":   dt,
+                    "Open":   float(row[3].replace(",", "")),
+                    "High":   float(row[4].replace(",", "")),
+                    "Low":    float(row[5].replace(",", "")),
+                    "Close":  float(row[6].replace(",", "")),
+                    "Volume": float(row[1].replace(",", "")),
+                })
+            except (ValueError, IndexError):
+                continue
+        return rows
+    except Exception as e:
+        logger.debug("TWSE month fetch %s %d/%02d: %s", stock_no, year, month, e)
+        return []
+
+
+def _fetch_tpex_month(stock_no: str, year: int, month: int) -> List[Dict]:
+    """從櫃買中心 API 抓取單月日 K 資料。"""
+    roc_year = year - 1911
+    url = (
+        f"https://www.tpex.org.tw/web/stock/aftertrading/daily_trading_info/"
+        f"st43_result.php?l=zh-tw&d={roc_year}/{month:02d}&stkno={stock_no}&o=json"
+    )
+    try:
+        resp = _SESSION.get(url, timeout=12)
+        data = resp.json()
+        if not data.get("aaData"):
+            return []
+        rows = []
+        for row in data["aaData"]:
+            try:
+                parts = row[0].strip().split("/")
+                yr = int(parts[0]) + 1911
+                dt = pd.Timestamp(f"{yr}-{parts[1]}-{parts[2]}")
+                rows.append({
+                    "Date":   dt,
+                    "Open":   float(row[4].replace(",", "")),
+                    "High":   float(row[5].replace(",", "")),
+                    "Low":    float(row[6].replace(",", "")),
+                    "Close":  float(row[7].replace(",", "")),
+                    "Volume": float(row[1].replace(",", "")),
+                })
+            except (ValueError, IndexError):
+                continue
+        return rows
+    except Exception as e:
+        logger.debug("TPEx month fetch %s %d/%02d: %s", stock_no, year, month, e)
+        return []
+
+
+def _fetch_tw_stock(symbol: str) -> Optional[pd.DataFrame]:
+    """
+    使用 TWSE / TPEx 官方 API 取得歷史 OHLCV 資料。
+    不依賴 Yahoo Finance，雲端 IP 不受封鎖限制。
+    """
+    if symbol.endswith(".TW"):
+        stock_no   = symbol[:-3]
+        fetch_func = _fetch_twse_month
+    elif symbol.endswith(".TWO"):
+        stock_no   = symbol[:-4]
+        fetch_func = _fetch_tpex_month
+    else:
+        logger.warning("Unknown symbol format: %s", symbol)
+        return None
+
+    today         = date.today()
+    months_needed = (HISTORY_DAYS // 25) + 2   # 確保足夠交易日
+    all_rows: List[Dict] = []
+
+    for i in range(months_needed):
+        target = (today.replace(day=1) - timedelta(days=30 * i))
+        rows   = fetch_func(stock_no, target.year, target.month)
+        all_rows.extend(rows)
+        time.sleep(0.3)
+
+    if not all_rows:
+        return None
+
+    df = pd.DataFrame(all_rows).set_index("Date").sort_index()
+    df = df[~df.index.duplicated(keep="first")]
+    return df
 
 
 # ─────────────────────────────────────────────
@@ -173,35 +277,21 @@ def _build_date_range() -> Tuple[str, str]:
     return start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
 
 
-def _flatten_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """將 yfinance MultiIndex 欄名攤平為單層。"""
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
-    return df
-
-
 def _download_batch_sync(symbols: List[str]) -> Dict[str, pd.DataFrame]:
     """
-    [同步] 逐支下載股票歷史資料，使用自訂 Session 帶瀏覽器 UA。
+    [同步] 逐支下載股票歷史資料，使用 TWSE/TPEx 官方 API。
     回傳 {symbol: DataFrame}，只保留資料筆數 ≥ 105 的股票。
     """
     if not symbols:
         return {}
 
-    start_date, end_date = _build_date_range()
     result: Dict[str, pd.DataFrame] = {}
-
     for sym in symbols:
-        try:
-            ticker = yf.Ticker(sym, session=_SESSION)
-            df = ticker.history(start=start_date, end=end_date, auto_adjust=True)
-            df = _flatten_columns(df)
-            if not df.empty and len(df) >= 105:
-                result[sym] = df
-            time.sleep(0.5)   # 每支之間稍停，避免觸發速率限制
-        except Exception as e:
-            logger.error("yfinance: Failed to get ticker '%s' reason: %s", sym, e)
-
+        df = _fetch_tw_stock(sym)
+        if df is not None and not df.empty and len(df) >= 105:
+            result[sym] = df
+        elif df is not None:
+            logger.debug("Insufficient data for %s: %d rows", sym, len(df))
     return result
 
 
@@ -387,18 +477,11 @@ def run_scan(stock_list: Optional[List[Dict]] = None) -> List[Dict]:
 def get_chart_data(symbol: str) -> Optional[Dict]:
     """
     取得指定股票的 K 線 + MA5 + MA100 資料，供前端 Lightweight Charts 使用。
-    使用相同的 HISTORY_DAYS 範圍。
+    使用 TWSE/TPEx 官方 API，不依賴 Yahoo Finance。
     """
-    start_date, end_date = _build_date_range()
     try:
-        df = yf.download(
-            symbol,
-            start=start_date, end=end_date,
-            auto_adjust=True, progress=False,
-        )
-        df = _flatten_columns(df)
-
-        if df.empty or len(df) < 5:
+        df = _fetch_tw_stock(symbol)
+        if df is None or df.empty or len(df) < 5:
             logger.warning("No chart data for %s", symbol)
             return None
 
