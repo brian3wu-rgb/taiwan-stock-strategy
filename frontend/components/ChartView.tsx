@@ -135,7 +135,7 @@ export default function ChartView({ symbol, signal, signalDate }: Props) {
     // ── MA5（藍色）───────────────────────────
     const ma5Series = chart.addLineSeries({
       color:            COLORS.ma5,
-      lineWidth:        1.5,
+      lineWidth:        2,
       priceLineVisible: false,
       lastValueVisible: false,
     })
