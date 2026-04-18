@@ -272,7 +272,7 @@ export default function HomePage() {
       </main>
 
       {/* ── 掃描進度浮動提示 ── */}
-      <ScanProgressBar onDone={handleScanDone} />
+      <ScanProgressBar triggered={scanning} onDone={handleScanDone} />
     </div>
   )
 }
