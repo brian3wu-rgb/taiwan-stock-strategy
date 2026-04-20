@@ -4,9 +4,8 @@
  * ChartView.tsx
  * ─────────────────────────────────────────────────────────────────────
  * TradingView Lightweight Charts v4 圖表元件。
- * - K 線 (candlestick)
- * - MA5（藍色）
- * - MA100（紅色）
+ * - K 線 (candlestick)  紅漲綠跌（台灣慣例）
+ * - MA5（黃色）MA60（青色）MA100（粉紅）
  * - 訊號標記（marker）
  * - ResizeObserver 響應式寬度
  */
@@ -36,16 +35,17 @@ interface Props {
 //  圖表顏色常數
 // ─────────────────────────────────────────────
 const COLORS = {
-  bg:         '#161b22',
-  grid:       '#21262d',
-  text:       '#8b949e',
-  border:     '#30363d',
-  candleUp:   '#3fb950',
-  candleDn:   '#f85149',
-  ma5:        '#58a6ff',   // 藍
-  ma100:      '#f85149',   // 紅
-  markerLong: '#3fb950',
-  markerShort:'#f85149',
+  bg:          '#161b22',
+  grid:        '#21262d',
+  text:        '#8b949e',
+  border:      '#30363d',
+  candleUp:    '#ef5350',   // 紅漲（台灣慣例）
+  candleDn:    '#26a69a',   // 綠跌（台灣慣例）
+  ma5:         '#f0c040',   // 黃
+  ma60:        '#26c6da',   // 青
+  ma100:       '#ec407a',   // 粉紅
+  markerLong:  '#3fb950',
+  markerShort: '#f85149',
 }
 
 // ─────────────────────────────────────────────
@@ -132,7 +132,7 @@ export default function ChartView({ symbol, signal, signalDate }: Props) {
       } satisfies CandlestickData))
     )
 
-    // ── MA5（藍色）───────────────────────────
+    // ── MA5（黃色）──────────────────────────
     const ma5Series = chart.addLineSeries({
       color:            COLORS.ma5,
       lineWidth:        2,
@@ -145,7 +145,20 @@ export default function ChartView({ symbol, signal, signalDate }: Props) {
         .map(c => ({ time: c.time as Time, value: c.ma5! } satisfies LineData))
     )
 
-    // ── MA100（紅色）──────────────────────────
+    // ── MA60（青色）──────────────────────────
+    const ma60Series = chart.addLineSeries({
+      color:            COLORS.ma60,
+      lineWidth:        2,
+      priceLineVisible: false,
+      lastValueVisible: false,
+    })
+    ma60Series.setData(
+      validCandles
+        .filter(c => c.ma60 != null)
+        .map(c => ({ time: c.time as Time, value: c.ma60! } satisfies LineData))
+    )
+
+    // ── MA100（粉紅）──────────────────────────
     const ma100Series = chart.addLineSeries({
       color:            COLORS.ma100,
       lineWidth:        2,
@@ -216,7 +229,7 @@ export default function ChartView({ symbol, signal, signalDate }: Props) {
             <span className="font-mono font-bold text-white">{symbol}</span>
             {signal && <SignalBadge signal={signal} />}
             {lastCandle && (
-              <span className={`font-mono text-lg font-bold ${isUp ? 'text-green-400' : 'text-red-400'}`}>
+              <span className={`font-mono text-lg font-bold ${isUp ? 'text-[#ef5350]' : 'text-[#26a69a]'}`}>
                 {lastCandle.close.toFixed(2)}
               </span>
             )}
@@ -232,10 +245,13 @@ export default function ChartView({ symbol, signal, signalDate }: Props) {
         {/* ── 圖例 ── */}
         <div className="flex gap-5 text-xs text-[#8b949e]">
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-5 h-0.5 bg-[#58a6ff] rounded" /> MA5（5日均線）
+            <span className="inline-block w-5 h-0.5 rounded" style={{ backgroundColor: COLORS.ma5 }} /> MA5
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-5 h-0.5 bg-[#f85149] rounded" /> MA100（100日均線）
+            <span className="inline-block w-5 h-0.5 rounded" style={{ backgroundColor: COLORS.ma60 }} /> MA60
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block w-5 h-0.5 rounded" style={{ backgroundColor: COLORS.ma100 }} /> MA100
           </span>
           {signal && (
             <span className="flex items-center gap-1.5">
@@ -272,15 +288,9 @@ export default function ChartView({ symbol, signal, signalDate }: Props) {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
               { label: '收盤',  value: lastCandle.close.toFixed(2) },
-              { label: 'MA5',   value: lastCandle.ma5?.toFixed(2)  ?? '—', color: 'text-blue-400' },
-              { label: 'MA100', value: lastCandle.ma100?.toFixed(2) ?? '—', color: 'text-red-400' },
-              {
-                label: 'MA 差距',
-                value: lastCandle.ma5 && lastCandle.ma100
-                  ? `${(Math.abs(lastCandle.ma5 - lastCandle.ma100) / lastCandle.ma100 * 100).toFixed(2)}%`
-                  : '—',
-                color: 'text-yellow-400',
-              },
+              { label: 'MA5',   value: lastCandle.ma5?.toFixed(2)  ?? '—', color: `text-[${COLORS.ma5}]` },
+              { label: 'MA60',  value: lastCandle.ma60?.toFixed(2) ?? '—', color: `text-[${COLORS.ma60}]` },
+              { label: 'MA100', value: lastCandle.ma100?.toFixed(2) ?? '—', color: `text-[${COLORS.ma100}]` },
             ].map(({ label, value, color }) => (
               <div key={label} className="bg-[#161b22] border border-[#30363d] rounded-lg p-3">
                 <div className="text-[10px] text-[#8b949e] uppercase tracking-wider">{label}</div>

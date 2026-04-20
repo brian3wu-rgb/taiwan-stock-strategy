@@ -72,5 +72,9 @@ def start_scheduler() -> BackgroundScheduler:
     )
 
     scheduler.start()
-    logger.info("Scheduler started. Next scan: weekdays at 15:30 (Asia/Taipei)")
+
+    # 顯示下次執行時間
+    job = scheduler.get_job("daily_scan")
+    next_run = job.next_run_time if job else None
+    logger.info("Scheduler started. Next scan: %s (weekdays 15:30 Asia/Taipei)", next_run)
     return scheduler

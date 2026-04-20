@@ -30,6 +30,10 @@ from database import (
 )
 from scanner import run_scan_async, get_chart_data
 from scheduler import start_scheduler
+from simulation import (
+    init_trades_table, get_simulation_data,
+    get_trades, add_trade, record_exit, delete_trade,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -99,6 +103,7 @@ class CandlePoint(BaseModel):
     low:   float
     close: float
     ma5:   Optional[float] = None
+    ma60:  Optional[float] = None
     ma100: Optional[float] = None
 
 
@@ -107,15 +112,85 @@ class ChartResponse(BaseModel):
     candles: List[CandlePoint]
 
 
+class SimRow(BaseModel):
+    date:         str
+    open:         float
+    high:         float
+    low:          float
+    close:        float
+    ma5:          Optional[float] = None
+    ma20:         Optional[float] = None
+    ma60:         Optional[float] = None
+    ma100:        Optional[float] = None
+    k:            Optional[float] = None
+    k_state:      str
+    trend:        str
+    ppp:          str
+    sig:          str
+    auto_hold:    str
+    auto_entry:   float
+    auto_pnl_twd: int
+    cross_sig:    Optional[str] = None
+
+
+class SimDataResponse(BaseModel):
+    symbol:         str
+    symbol_full:    str
+    market:         str
+    usd_twd:        float
+    default_shares: int
+    rows:           List[SimRow]
+
+
+class TradeIn(BaseModel):
+    direction:   str = '多單'   # '多單' | '空單'
+    entry_date:  str
+    entry_price: float
+    shares:      int
+    cost:        float
+    notes:       Optional[str] = ""
+
+
+class ExitIn(BaseModel):
+    exit_date:   str
+    exit_price:  float
+
+
+class TradeOut(BaseModel):
+    id:          int
+    symbol:      str
+    market:      str
+    direction:   str = '多單'
+    entry_date:  Optional[str]   = None
+    entry_price: Optional[float] = None
+    shares:      Optional[int]   = None
+    cost:        Optional[float] = None
+    exit_date:   Optional[str]   = None
+    exit_price:  Optional[float] = None
+    notes:       Optional[str]   = None
+    created_at:  str
+
+
 # ─────────────────────────────────────────────
 #  Startup
 # ─────────────────────────────────────────────
 
 @app.on_event("startup")
 async def startup_event():
+    import asyncio
     init_db()
+    init_trades_table()
     start_scheduler()
     logger.info("API ready. DB initialized. Scheduler running.")
+
+    # 若今日尚無掃描結果，於背景自動補掃
+    last_date = get_last_scan_date()
+    today_str = str(date.today())
+    if last_date != today_str:
+        logger.info("No scan data for today (%s), triggering startup scan in background.", today_str)
+        _scan_status["running"]  = True
+        _scan_status["progress"] = "啟動時自動掃描中..."
+        asyncio.create_task(_background_scan())
 
 
 # ─────────────────────────────────────────────
@@ -225,7 +300,7 @@ def get_scan_status():
 
 
 @app.get("/chart/{symbol:path}", response_model=ChartResponse, tags=["Chart"])
-async def get_chart(symbol: str):
+def get_chart(symbol: str):
     """
     取得 K 線 + MA5 + MA100 資料供前端圖表使用。
     symbol 範例：2330.TW、0050.TW、6415.TWO
@@ -237,3 +312,68 @@ async def get_chart(symbol: str):
             detail=f"找不到 {symbol} 的資料，請確認股票代碼是否正確。",
         )
     return ChartResponse(**data)
+
+
+# ─────────────────────────────────────────────
+#  模擬交易路由
+# ─────────────────────────────────────────────
+
+@app.get("/simulate/{symbol}", response_model=SimDataResponse, tags=["Simulate"])
+def simulate_get(
+    symbol:     str,
+    market:     str = "TW",
+    start_date: Optional[str] = None,   # YYYY-MM-DD
+    end_date:   Optional[str] = None,   # YYYY-MM-DD
+):
+    """
+    取得策略指標 + 自動策略損益模擬。
+    market: TW（台股 TWSE/TPEx） | US（美股 yfinance）
+    start_date / end_date: 指定顯示區間（不傳則預設最近 30 個交易日）
+    """
+    data = get_simulation_data(symbol, market, start_date, end_date)
+    if not data:
+        raise HTTPException(
+            status_code=404,
+            detail=f"找不到 {symbol} 的資料，請確認股票代碼是否正確。",
+        )
+    return data
+
+
+@app.get("/simulate/{symbol}/trades", response_model=List[TradeOut], tags=["Simulate"])
+def simulate_list_trades(symbol: str, market: str = "TW"):
+    """取得指定股票的所有已儲存交易記錄。"""
+    return get_trades(symbol, market)
+
+
+@app.post("/simulate/{symbol}/trades", response_model=dict, tags=["Simulate"])
+def simulate_add_trade(symbol: str, market: str, body: TradeIn):
+    """新增一筆手動交易記錄。"""
+    result = add_trade(
+        symbol=symbol,
+        market=market,
+        direction=body.direction,
+        entry_date=body.entry_date,
+        entry_price=body.entry_price,
+        shares=body.shares,
+        cost=body.cost,
+        notes=body.notes or "",
+    )
+    return result
+
+
+@app.patch("/simulate/trades/{trade_id}/exit", response_model=dict, tags=["Simulate"])
+def simulate_record_exit(trade_id: int, body: ExitIn):
+    """記錄出場日期與價格。"""
+    ok = record_exit(trade_id, body.exit_date, body.exit_price)
+    if not ok:
+        raise HTTPException(status_code=404, detail="找不到此交易記錄")
+    return {"updated": True}
+
+
+@app.delete("/simulate/trades/{trade_id}", tags=["Simulate"])
+def simulate_delete_trade(trade_id: int):
+    """刪除指定 ID 的交易記錄。"""
+    ok = delete_trade(trade_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="找不到此交易記錄")
+    return {"deleted": True}

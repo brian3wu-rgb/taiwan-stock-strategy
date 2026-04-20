@@ -1,4 +1,5 @@
 services:
+  # ── 後端 FastAPI ──────────────────────────────────────────────
   - type: web
     name: taiwan-stock-backend
     runtime: docker
@@ -7,7 +8,7 @@ services:
     plan: free
     envVars:
       - key: DATABASE_URL
-        value: /app/data/stocks.db
+        value: ./data/stocks.db
       - key: CORS_ORIGINS
         value: https://taiwan-stock-frontend.onrender.com
       - key: MAX_WORKERS
@@ -16,10 +17,13 @@ services:
         value: "40"
       - key: HISTORY_DAYS
         value: "160"
+      - key: CHART_HISTORY_DAYS
+        value: "280"
       - key: SCAN_LIMIT
         value: "0"
     healthCheckPath: /health
 
+  # ── 前端 Next.js ──────────────────────────────────────────────
   - type: web
     name: taiwan-stock-frontend
     runtime: docker

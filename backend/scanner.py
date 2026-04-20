@@ -54,6 +54,9 @@ BATCH_SIZE: int = int(os.getenv("BATCH_SIZE", "40"))
 # 抓取日曆天數（160天 ≈ 112 交易日，足夠計算 MA100）
 HISTORY_DAYS: int = int(os.getenv("HISTORY_DAYS", "160"))
 
+# 圖表專用天數（280天 ≈ 200 交易日，確保 MA60/MA100 從起點即可見）
+CHART_HISTORY_DAYS: int = int(os.getenv("CHART_HISTORY_DAYS", "280"))
+
 
 # ─────────────────────────────────────────────
 #  熱門股備援清單
@@ -233,10 +236,11 @@ def _fetch_tpex_month(stock_no: str, year: int, month: int) -> List[Dict]:
         return []
 
 
-def _fetch_tw_stock(symbol: str) -> Optional[pd.DataFrame]:
+def _fetch_tw_stock(symbol: str, history_days: Optional[int] = None) -> Optional[pd.DataFrame]:
     """
     使用 TWSE / TPEx 官方 API 取得歷史 OHLCV 資料。
     不依賴 Yahoo Finance，雲端 IP 不受封鎖限制。
+    history_days: 抓取天數，預設為 HISTORY_DAYS；圖表用途請傳 CHART_HISTORY_DAYS
     """
     if symbol.endswith(".TW"):
         stock_no   = symbol[:-3]
@@ -248,8 +252,9 @@ def _fetch_tw_stock(symbol: str) -> Optional[pd.DataFrame]:
         logger.warning("Unknown symbol format: %s", symbol)
         return None
 
+    days          = history_days if history_days is not None else HISTORY_DAYS
     today         = date.today()
-    months_needed = (HISTORY_DAYS // 25) + 2   # 確保足夠交易日
+    months_needed = (days // 25) + 2   # 確保足夠交易日
     all_rows: List[Dict] = []
 
     for i in range(months_needed):
@@ -319,13 +324,11 @@ def _analyze_stock(symbol: str, name: str, df: pd.DataFrame) -> Optional[Dict]:
         df["MA5"]   = calculate_ma(df["Close"], 5)
         df["MA100"] = calculate_ma(df["Close"], 100)
 
-        # ── 成交量過濾 ───────────────────────────
-        vol_pass, vol_ratio = check_volume_filter(df, period=20)
-        if not vol_pass:
-            return None   # 量能不足，跳過
+        # ── 成交量比率（僅計算供顯示用，不過濾）───────────────────────────
+        _, vol_ratio = check_volume_filter(df, period=20)
 
-        # ── 訊號判斷（取最後 2 根 K 線）────────
-        recent = df.tail(2)
+        # ── 訊號判斷（取最後 6 根 K 線，供5日突破判斷用）──
+        recent = df.tail(6)
         today  = recent.iloc[-1]
 
         price = float(today["Close"])
@@ -476,17 +479,18 @@ def run_scan(stock_list: Optional[List[Dict]] = None) -> List[Dict]:
 
 def get_chart_data(symbol: str) -> Optional[Dict]:
     """
-    取得指定股票的 K 線 + MA5 + MA100 資料，供前端 Lightweight Charts 使用。
-    使用 TWSE/TPEx 官方 API，不依賴 Yahoo Finance。
+    取得指定股票的 K 線 + MA5 + MA60 + MA100 資料，供前端 Lightweight Charts 使用。
+    使用 CHART_HISTORY_DAYS（280天）確保 MA 線從起點即可見。
     """
     try:
-        df = _fetch_tw_stock(symbol)
+        df = _fetch_tw_stock(symbol, history_days=CHART_HISTORY_DAYS)
         if df is None or df.empty or len(df) < 5:
             logger.warning("No chart data for %s", symbol)
             return None
 
         df = df.dropna(subset=["Open", "High", "Low", "Close"])
         df["MA5"]   = calculate_ma(df["Close"], 5)
+        df["MA60"]  = calculate_ma(df["Close"], 60)
         df["MA100"] = calculate_ma(df["Close"], 100)
 
         candles = [
@@ -497,6 +501,7 @@ def get_chart_data(symbol: str) -> Optional[Dict]:
                 "low":   round(float(row["Low"]),   2),
                 "close": round(float(row["Close"]), 2),
                 "ma5":   round(float(row["MA5"]),   2) if pd.notna(row["MA5"])   else None,
+                "ma60":  round(float(row["MA60"]),  2) if pd.notna(row["MA60"])  else None,
                 "ma100": round(float(row["MA100"]), 2) if pd.notna(row["MA100"]) else None,
             }
             for idx, row in df.iterrows()

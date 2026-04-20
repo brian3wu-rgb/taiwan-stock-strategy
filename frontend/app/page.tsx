@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { getScanResults, triggerScan, ScanResult, ScanResponse } from '@/lib/api'
 import SignalBadge from '@/components/SignalBadge'
 import ScanProgressBar from '@/components/ScanProgressBar'
+import MiniChart from '@/components/MiniChart'
 
 type FilterType = 'ALL' | 'LONG' | 'SHORT'
 
@@ -21,89 +22,77 @@ function StatCard({ label, value, color }: { label: string; value: number | stri
 }
 
 // ─────────────────────────────────────────────
-//  表格列
+//  股票卡片（含迷你圖）
 // ─────────────────────────────────────────────
-function StockRow({ stock, rank }: { stock: ScanResult; rank: number }) {
-  const proximityPct = stock.cross_proximity != null
-    ? (stock.cross_proximity * 100).toFixed(2)
-    : '—'
-
+function StockCard({ stock, rank }: { stock: ScanResult; rank: number }) {
   const volColor = stock.volume_ratio != null
     ? stock.volume_ratio >= 2 ? 'text-yellow-400'
     : stock.volume_ratio >= 1.5 ? 'text-green-400'
     : 'text-[#e6edf3]'
     : 'text-[#8b949e]'
 
+  const shortCode = stock.symbol.replace('.TW', '').replace('.TWO', '')
+  const market    = stock.symbol.endsWith('.TWO') ? 'OTC' : 'TSE'
+
   return (
-    <tr className="border-b border-[#21262d] hover:bg-[#1c2128] transition-colors group">
-      {/* 排名 */}
-      <td className="px-4 py-3 text-xs text-[#8b949e] w-12">{rank}</td>
+    <div className="bg-[#161b22] border border-[#30363d] rounded-xl overflow-hidden flex flex-col hover:border-[#58a6ff]/40 transition-colors">
 
-      {/* 代號 */}
-      <td className="px-4 py-3">
-        <span className="font-mono text-sm text-[#58a6ff]">
-          {stock.symbol.replace('.TW', '').replace('.TWO', '')}
-        </span>
-        <span className="ml-1.5 text-[10px] text-[#8b949e]">
-          {stock.symbol.endsWith('.TWO') ? 'OTC' : 'TSE'}
-        </span>
-      </td>
-
-      {/* 名稱 */}
-      <td className="px-4 py-3 text-sm font-medium">{stock.name}</td>
-
-      {/* 訊號 */}
-      <td className="px-4 py-3">
-        <SignalBadge signal={stock.signal} />
-      </td>
-
-      {/* 收盤價 */}
-      <td className="px-4 py-3 text-right font-mono text-sm font-semibold">
-        {stock.price.toFixed(2)}
-      </td>
-
-      {/* MA5 */}
-      <td className="px-4 py-3 text-right font-mono text-xs text-blue-400">
-        {stock.ma5?.toFixed(2) ?? '—'}
-      </td>
-
-      {/* MA100 */}
-      <td className="px-4 py-3 text-right font-mono text-xs text-red-400">
-        {stock.ma100?.toFixed(2) ?? '—'}
-      </td>
-
-      {/* 交叉接近度 ← 排序依據 */}
-      <td className="px-4 py-3 text-right">
-        <div className="flex items-center justify-end gap-2">
-          {/* 視覺條 */}
-          <div className="w-16 h-1.5 bg-[#21262d] rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-green-500 to-yellow-400"
-              style={{ width: `${Math.min(100, (1 - (stock.cross_proximity ?? 0.02)) / 0.02 * 100)}%` }}
-            />
-          </div>
-          <span className="font-mono text-xs text-[#e3b341]">{proximityPct}%</span>
+      {/* ── 卡片標頭 ── */}
+      <div className="px-3 pt-3 pb-2 flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-[10px] text-[#8b949e] shrink-0">#{rank}</span>
+          <span className="font-mono font-bold text-[#58a6ff] text-sm">{shortCode}</span>
+          <span className="text-[10px] text-[#8b949e] shrink-0">{market}</span>
+          <span className="text-sm font-medium truncate">{stock.name}</span>
         </div>
-      </td>
+        <div className="flex items-center gap-2 shrink-0">
+          <SignalBadge signal={stock.signal} />
+          <Link
+            href={`/chart/${encodeURIComponent(stock.symbol)}?signal=${stock.signal}&date=${stock.scan_date}`}
+            className="text-[10px] text-[#58a6ff] hover:text-white transition-colors"
+          >
+            全圖 →
+          </Link>
+        </div>
+      </div>
 
-      {/* 量比 */}
-      <td className={`px-4 py-3 text-right font-mono text-xs ${volColor}`}>
-        {stock.volume_ratio != null ? `${stock.volume_ratio.toFixed(2)}x` : '—'}
-      </td>
+      {/* ── MA 圖例 ── */}
+      <div className="px-3 pb-1.5 flex gap-3 text-[10px] text-[#8b949e]">
+        <span className="flex items-center gap-1"><span className="inline-block w-4 h-[2px] rounded" style={{ backgroundColor: '#f0c040' }} />MA5</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-4 h-[2px] rounded" style={{ backgroundColor: '#26c6da' }} />MA60</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-4 h-[2px] rounded" style={{ backgroundColor: '#ec407a' }} />MA100</span>
+      </div>
+
+      {/* ── 迷你 K 線圖 ── */}
+      <div className="border-t border-[#21262d]">
+        <MiniChart symbol={stock.symbol} height={180} />
+      </div>
+
+      {/* ── 卡片底部數據 ── */}
+      <div className="px-3 py-2 border-t border-[#21262d] grid grid-cols-4 gap-1 text-center">
+        <div>
+          <div className="text-[9px] text-[#8b949e]">收盤</div>
+          <div className="font-mono text-xs font-semibold">{stock.price.toFixed(2)}</div>
+        </div>
+        <div>
+          <div className="text-[9px] text-[#8b949e]">MA5</div>
+          <div className="font-mono text-xs" style={{ color: '#f0c040' }}>{stock.ma5?.toFixed(2) ?? '—'}</div>
+        </div>
+        <div>
+          <div className="text-[9px] text-[#8b949e]">MA100</div>
+          <div className="font-mono text-xs" style={{ color: '#ec407a' }}>{stock.ma100?.toFixed(2) ?? '—'}</div>
+        </div>
+        <div>
+          <div className="text-[9px] text-[#8b949e]">量比</div>
+          <div className={`font-mono text-xs ${volColor}`}>
+            {stock.volume_ratio != null ? `${stock.volume_ratio.toFixed(1)}x` : '—'}
+          </div>
+        </div>
+      </div>
 
       {/* 日期 */}
-      <td className="px-4 py-3 text-right text-xs text-[#8b949e]">{stock.scan_date}</td>
-
-      {/* 圖表連結 */}
-      <td className="px-4 py-3 text-right">
-        <Link
-          href={`/chart/${encodeURIComponent(stock.symbol)}?signal=${stock.signal}&date=${stock.scan_date}`}
-          className="text-xs text-[#58a6ff] hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
-        >
-          圖表 →
-        </Link>
-      </td>
-    </tr>
+      <div className="px-3 pb-2 text-[9px] text-[#8b949e] text-right">{stock.scan_date}</div>
+    </div>
   )
 }
 
@@ -147,10 +136,10 @@ export default function HomePage() {
     load()
   }
 
-  const allResults   = data?.results ?? []
-  const longCount    = allResults.filter(r => r.signal === 'LONG').length
-  const shortCount   = allResults.filter(r => r.signal === 'SHORT').length
-  const filtered     = filter === 'ALL' ? allResults : allResults.filter(r => r.signal === filter)
+  const allResults = data?.results ?? []
+  const longCount  = allResults.filter(r => r.signal === 'LONG').length
+  const shortCount = allResults.filter(r => r.signal === 'SHORT').length
+  const filtered   = filter === 'ALL' ? allResults : allResults.filter(r => r.signal === filter)
 
   return (
     <div className="min-h-screen bg-[#0d1117]">
@@ -170,6 +159,12 @@ export default function HomePage() {
                 上次掃描：{data.scan_date}
               </span>
             )}
+            <Link
+              href="/simulate"
+              className="px-3 py-1.5 text-xs bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] rounded-lg transition-colors"
+            >
+              📊 模擬交易
+            </Link>
             <button
               onClick={load}
               className="px-3 py-1.5 text-xs bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] rounded-lg transition-colors"
@@ -191,10 +186,10 @@ export default function HomePage() {
 
         {/* ── 統計卡 ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard label="掃描結果"  value={data?.total ?? 0}  color="text-white" />
-          <StatCard label="做多訊號"  value={longCount}          color="text-green-400" />
-          <StatCard label="做空訊號"  value={shortCount}         color="text-red-400" />
-          <StatCard label="掃描日期"  value={data?.scan_date ?? '—'} color="text-[#e3b341]" />
+          <StatCard label="掃描結果" value={data?.total ?? 0}       color="text-white" />
+          <StatCard label="做多訊號" value={longCount}               color="text-green-400" />
+          <StatCard label="做空訊號" value={shortCount}              color="text-red-400" />
+          <StatCard label="掃描日期" value={data?.scan_date ?? '—'}  color="text-[#e3b341]" />
         </div>
 
         {/* ── 篩選標籤 ── */}
@@ -223,7 +218,7 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* ── 表格 ── */}
+        {/* ── 卡片網格 ── */}
         {loading ? (
           <div className="flex items-center justify-center py-24 text-[#8b949e] gap-3">
             <div className="w-5 h-5 border-2 border-[#30363d] border-t-blue-400 rounded-full animate-spin" />
@@ -239,34 +234,10 @@ export default function HomePage() {
             </div>
           </div>
         ) : (
-          <div className="bg-[#161b22] border border-[#30363d] rounded-xl overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm whitespace-nowrap">
-                <thead>
-                  <tr className="border-b border-[#30363d]">
-                    {['#', '代號', '名稱', '訊號', '收盤價', 'MA5', 'MA100', '交叉接近度 ↑', '量比', '日期', ''].map(h => (
-                      <th key={h}
-                          className={`px-4 py-3 text-left text-[10px] font-semibold text-[#8b949e] uppercase tracking-wider ${
-                            ['收盤價','MA5','MA100','交叉接近度 ↑','量比','日期',''].includes(h) ? 'text-right' : ''
-                          }`}>
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((stock, i) => (
-                    <StockRow key={stock.symbol} stock={stock} rank={i + 1} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* 表格底部說明 */}
-            <div className="px-4 py-3 border-t border-[#21262d] flex items-center gap-4 text-[10px] text-[#8b949e]">
-              <span>▲ 交叉接近度越小 = 越靠近均線交叉點，優先關注</span>
-              <span>量比 &gt;2x 以黃色標示</span>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filtered.map((stock, i) => (
+              <StockCard key={stock.symbol} stock={stock} rank={i + 1} />
+            ))}
           </div>
         )}
       </main>

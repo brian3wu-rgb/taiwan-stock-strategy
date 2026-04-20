@@ -4,25 +4,20 @@ indicators.py
 技術指標計算模組：MA5、MA100、成交量比率、交叉接近程度，
 以及做多 / 做空訊號判斷。
 
-策略邏輯：
-  共同前置條件（做多 & 做空）：
-    - 成交量 > 20 日平均成交量（確認市場積極參與）
-
+策略邏輯：近5個交易日內 close 穿越 MA100
   做多（LONG）：
-    1. |MA5 - MA100| / MA100 < 0.02  → 均線交叉區附近
-    2. 當日為紅K（收 > 開）
-    3. 收盤 > 昨日最高價（突破）
-    4. 收盤 > MA5 且 收盤 > MA100
+    1. 最新收盤 > MA100（目前仍在 MA100 上方）
+    2. 近5個交易日內，至少1天的收盤 < MA100（確認是近期突破，不是老早就過了）
+    3. 非趨勢不明（|close - MA100| >= 0.3%）
 
   做空（SHORT）：
-    1. |MA5 - MA100| / MA100 < 0.02  → 均線交叉區附近
-    2. 當日為黑K（收 < 開）
-    3. 收盤 < 昨日最低價（跌破）
-    4. 收盤 < MA5 且 收盤 < MA100
+    1. 最新收盤 < MA100（目前仍在 MA100 下方）
+    2. 近5個交易日內，至少1天的收盤 > MA100（確認是近期跌破）
+    3. 非趨勢不明（|close - MA100| >= 0.3%）
 
 排序欄位：
   cross_proximity = |MA5 - MA100| / MA100
-  值越小 = 越接近交叉點 = 排列越前面
+  值越小 = 穿越時間點越接近（MA5 也接近 MA100）→ 排列越前面
 """
 
 import pandas as pd
@@ -61,7 +56,7 @@ def check_volume_filter(df: pd.DataFrame, period: int = 20) -> Tuple[bool, float
         return True, 1.0
 
     ratio = vol_today / vol_avg
-    return ratio > 1.0, round(ratio, 3)
+    return True, round(ratio, 3)
 
 
 # ─────────────────────────────────────────────
@@ -84,50 +79,71 @@ def compute_cross_proximity(ma5: float, ma100: float) -> float:
 
 def check_long_signal(df: pd.DataFrame) -> bool:
     """
-    判斷做多訊號。
-    傳入含 MA5、MA100 欄位的 DataFrame（至少 2 列）。
-    注意：成交量過濾應在呼叫此函式前完成。
+    做多訊號：近5個交易日內 close 突破 MA100 向上。
+      1. 最新收盤 > MA100（目前仍在 MA100 上方）
+      2. 最近5個交易日（今天之前）至少1天收盤 < MA100（確認是近期突破）
+      3. 非趨勢不明（|close - MA100| >= 0.3%）
     """
-    if len(df) < 2:
+    if len(df) < 6:
         return False
 
-    today     = df.iloc[-1]
-    yesterday = df.iloc[-2]
+    today = df.iloc[-1]
+    close = float(today["Close"])
+    ma100 = float(today["MA100"]) if pd.notna(today.get("MA100")) else None
 
-    ma5   = today.get("MA5")
-    ma100 = today.get("MA100")
-
-    if pd.isna(ma5) or pd.isna(ma100) or ma100 == 0:
+    if ma100 is None or ma100 == 0:
         return False
 
-    near_cross      = abs(ma5 - ma100) / ma100 < 0.02   # 條件 1：交叉區
-    bullish_candle  = today["Close"] > today["Open"]     # 條件 2：紅 K
-    above_prev_high = today["Close"] > yesterday["High"] # 條件 3：突破昨高
-    above_mas       = today["Close"] > ma5 and today["Close"] > ma100  # 條件 4
+    # 條件1：目前在 MA100 上方
+    if close <= ma100:
+        return False
 
-    return near_cross and bullish_candle and above_prev_high and above_mas
+    # 條件3：排除趨勢不明（太接近 MA100）
+    if abs(close - ma100) < ma100 * 0.003:
+        return False
+
+    # 條件2：近5個交易日內曾在 MA100 下方（確認是近期突破而非早就在上面）
+    prev5 = df.iloc[-6:-1]   # 今天前5個交易日
+    for _, row in prev5.iterrows():
+        prev_close = float(row["Close"])
+        prev_ma100 = float(row["MA100"]) if pd.notna(row.get("MA100")) else None
+        if prev_ma100 and prev_close < prev_ma100:
+            return True
+
+    return False
 
 
 def check_short_signal(df: pd.DataFrame) -> bool:
     """
-    判斷做空訊號。
-    傳入含 MA5、MA100 欄位的 DataFrame（至少 2 列）。
+    做空訊號：近5個交易日內 close 跌破 MA100 向下。
+      1. 最新收盤 < MA100（目前仍在 MA100 下方）
+      2. 最近5個交易日（今天之前）至少1天收盤 > MA100（確認是近期跌破）
+      3. 非趨勢不明（|close - MA100| >= 0.3%）
     """
-    if len(df) < 2:
+    if len(df) < 6:
         return False
 
-    today     = df.iloc[-1]
-    yesterday = df.iloc[-2]
+    today = df.iloc[-1]
+    close = float(today["Close"])
+    ma100 = float(today["MA100"]) if pd.notna(today.get("MA100")) else None
 
-    ma5   = today.get("MA5")
-    ma100 = today.get("MA100")
-
-    if pd.isna(ma5) or pd.isna(ma100) or ma100 == 0:
+    if ma100 is None or ma100 == 0:
         return False
 
-    near_cross     = abs(ma5 - ma100) / ma100 < 0.02   # 條件 1：交叉區
-    bearish_candle = today["Close"] < today["Open"]     # 條件 2：黑 K
-    below_prev_low = today["Close"] < yesterday["Low"]  # 條件 3：跌破昨低
-    below_mas      = today["Close"] < ma5 and today["Close"] < ma100  # 條件 4
+    # 條件1：目前在 MA100 下方
+    if close >= ma100:
+        return False
 
-    return near_cross and bearish_candle and below_prev_low and below_mas
+    # 條件3：排除趨勢不明
+    if abs(close - ma100) < ma100 * 0.003:
+        return False
+
+    # 條件2：近5個交易日內曾在 MA100 上方（確認是近期跌破）
+    prev5 = df.iloc[-6:-1]   # 今天前5個交易日
+    for _, row in prev5.iterrows():
+        prev_close = float(row["Close"])
+        prev_ma100 = float(row["MA100"]) if pd.notna(row.get("MA100")) else None
+        if prev_ma100 and prev_close > prev_ma100:
+            return True
+
+    return False
