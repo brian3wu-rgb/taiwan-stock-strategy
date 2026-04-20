@@ -121,7 +121,7 @@ def _parse_isin_page(url: str, suffix: str) -> List[Dict]:
         parts = text.split("\u3000")
         code  = parts[0].strip()
         name  = parts[1].strip() if len(parts) > 1 else code
-        if code.isdigit() and 4 <= len(code) <= 6:
+        if code.isdigit() and len(code) == 4:
             stocks.append({"symbol": code + suffix, "name": name})
     return stocks
 
