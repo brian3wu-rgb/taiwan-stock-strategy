@@ -32,4 +32,4 @@ services:
     plan: free
     envVars:
       - key: NEXT_PUBLIC_API_URL
-        value: https://taiwan-stock-backend.onrender.com
+        value: https://taiwan-stock-backend-utuw.onrender.com

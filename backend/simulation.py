@@ -465,19 +465,19 @@ def get_simulation_data(symbol: str, market: str,
 #  交易記錄 CRUD
 # ─────────────────────────────────────────────
 
-import sqlite3
 import os
-
-DB_PATH: str = os.getenv("DATABASE_URL", "./data/stocks.db")
+from database import _connect, _is_postgres, _column_exists
 
 
 def init_trades_table() -> None:
     """建立 trades 資料表（若不存在），並自動補齊新欄位。"""
-    conn = sqlite3.connect(DB_PATH)
+    auto = "SERIAL" if _is_postgres() else "INTEGER"
+    now  = "NOW()" if _is_postgres() else "(datetime('now'))"
+    conn = _connect()
     cur  = conn.cursor()
-    cur.execute("""
+    cur.execute(f"""
         CREATE TABLE IF NOT EXISTS trades (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          {auto} PRIMARY KEY,
             symbol      TEXT    NOT NULL,
             market      TEXT    NOT NULL,
             direction   TEXT    NOT NULL DEFAULT '多單',
@@ -488,29 +488,32 @@ def init_trades_table() -> None:
             exit_date   TEXT,
             exit_price  REAL,
             notes       TEXT,
-            created_at  TEXT    DEFAULT (datetime('now'))
+            created_at  TEXT    DEFAULT {now}
         )
     """)
-    # 自動補齊舊版資料庫缺少的欄位
-    existing = {row[1] for row in cur.execute("PRAGMA table_info(trades)")}
     for col, dtype in [("direction", "TEXT NOT NULL DEFAULT '多單'"),
                        ("exit_date",  "TEXT"),
                        ("exit_price", "REAL")]:
-        if col not in existing:
+        if not _column_exists(cur, "trades", col):
             cur.execute(f"ALTER TABLE trades ADD COLUMN {col} {dtype}")
     conn.commit()
     conn.close()
 
 
 def get_trades(symbol: str, market: str) -> List[Dict]:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    cur = conn.cursor()
+    ph   = "%s" if _is_postgres() else "?"
+    conn = _connect()
+    cur  = conn.cursor()
     cur.execute(
-        "SELECT * FROM trades WHERE symbol=? AND market=? ORDER BY entry_date ASC, created_at ASC",
+        f"SELECT * FROM trades WHERE symbol={ph} AND market={ph} ORDER BY entry_date ASC, created_at ASC",
         (symbol.upper(), market.upper()),
     )
-    rows = [dict(r) for r in cur.fetchall()]
+    if _is_postgres():
+        cols = [d.name for d in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+    else:
+        cols = [d[0] for d in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
     conn.close()
     return rows
 
@@ -518,26 +521,36 @@ def get_trades(symbol: str, market: str) -> List[Dict]:
 def add_trade(symbol: str, market: str, direction: str, entry_date: str,
               entry_price: float, shares: int,
               cost: float, notes: str = "") -> Dict:
-    conn = sqlite3.connect(DB_PATH)
+    ph   = "%s" if _is_postgres() else "?"
+    conn = _connect()
     cur  = conn.cursor()
-    cur.execute(
-        """INSERT INTO trades (symbol, market, direction, entry_date, entry_price, shares, cost, notes)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-        (symbol.upper(), market.upper(), direction,
-         entry_date, entry_price, shares, cost, notes),
-    )
+    if _is_postgres():
+        cur.execute(
+            f"""INSERT INTO trades (symbol, market, direction, entry_date, entry_price, shares, cost, notes)
+               VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph}) RETURNING id""",
+            (symbol.upper(), market.upper(), direction,
+             entry_date, entry_price, shares, cost, notes),
+        )
+        trade_id = cur.fetchone()[0]
+    else:
+        cur.execute(
+            f"""INSERT INTO trades (symbol, market, direction, entry_date, entry_price, shares, cost, notes)
+               VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph})""",
+            (symbol.upper(), market.upper(), direction,
+             entry_date, entry_price, shares, cost, notes),
+        )
+        trade_id = cur.lastrowid
     conn.commit()
-    trade_id = cur.lastrowid
     conn.close()
     return {"id": trade_id}
 
 
 def record_exit(trade_id: int, exit_date: str, exit_price: float) -> bool:
-    """記錄出場日期與價格。"""
-    conn = sqlite3.connect(DB_PATH)
+    ph   = "%s" if _is_postgres() else "?"
+    conn = _connect()
     cur  = conn.cursor()
     cur.execute(
-        "UPDATE trades SET exit_date=?, exit_price=? WHERE id=?",
+        f"UPDATE trades SET exit_date={ph}, exit_price={ph} WHERE id={ph}",
         (exit_date, exit_price, trade_id),
     )
     conn.commit()
@@ -547,9 +560,10 @@ def record_exit(trade_id: int, exit_date: str, exit_price: float) -> bool:
 
 
 def delete_trade(trade_id: int) -> bool:
-    conn = sqlite3.connect(DB_PATH)
+    ph   = "%s" if _is_postgres() else "?"
+    conn = _connect()
     cur  = conn.cursor()
-    cur.execute("DELETE FROM trades WHERE id=?", (trade_id,))
+    cur.execute(f"DELETE FROM trades WHERE id={ph}", (trade_id,))
     conn.commit()
     deleted = cur.rowcount > 0
     conn.close()

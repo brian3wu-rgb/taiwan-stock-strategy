@@ -14,7 +14,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # 建置時注入後端 API URL（可被 docker-compose / Railway 覆蓋）
-ARG NEXT_PUBLIC_API_URL=https://taiwan-stock-backend.onrender.com
+ARG NEXT_PUBLIC_API_URL=https://taiwan-stock-backend-utuw.onrender.com
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 # Docker 部署時啟用 standalone 模式
 ENV DOCKER_BUILD=1
