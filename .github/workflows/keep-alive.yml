@@ -12,7 +12,7 @@ jobs:
       - name: Ping Backend /health
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
-            https://taiwan-stock-backend.onrender.com/health)
+            https://taiwan-stock-backend-utuw.onrender.com/health))
           echo "Backend /health → HTTP $STATUS"
 
       - name: Ping Frontend
