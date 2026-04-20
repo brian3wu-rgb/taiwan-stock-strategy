@@ -1,0 +1,22 @@
+name: Keep Render Services Alive
+
+on:
+  schedule:
+    - cron: '*/14 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Backend /health
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
+            https://taiwan-stock-backend.onrender.com/health)
+          echo "Backend /health → HTTP $STATUS"
+
+      - name: Ping Frontend
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
+            https://taiwan-stock-frontend.onrender.com)
+          echo "Frontend / → HTTP $STATUS"
