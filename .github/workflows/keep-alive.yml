@@ -2,8 +2,9 @@ name: Keep Render Services Alive
 
 on:
   schedule:
+    # 每 14 分鐘 ping 一次，防止 Render 免費方案睡眠（閒置 15 分鐘會睡）
     - cron: '*/14 * * * *'
-  workflow_dispatch:
+  workflow_dispatch: # 允許手動觸發
 
 jobs:
   ping:
@@ -12,11 +13,11 @@ jobs:
       - name: Ping Backend /health
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
-            https://taiwan-stock-backend-utuw.onrender.com/health))
+            https://taiwan-stock-backend-utuw.onrender.com/health || echo "000")
           echo "Backend /health → HTTP $STATUS"
 
       - name: Ping Frontend
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
-            https://taiwan-stock-frontend.onrender.com)
+            https://taiwan-stock-frontend.onrender.com || echo "000")
           echo "Frontend / → HTTP $STATUS"
