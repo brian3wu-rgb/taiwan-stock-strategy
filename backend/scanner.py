@@ -557,6 +557,15 @@ def run_scan(stock_list: Optional[List[Dict]] = None) -> List[Dict]:
 #  圖表資料
 # ─────────────────────────────────────────────
 
+# ─────────────────────────────────────────────
+#  圖表資料 TTL Cache（30 分鐘，最多 600 支）
+# ─────────────────────────────────────────────
+
+import time as _time
+_chart_cache: dict = {}          # symbol → (data, cached_at)
+_CHART_CACHE_TTL = 1800          # 30 分鐘
+
+
 def _fetch_chart_yfinance(symbol: str, history_days: int) -> Optional[pd.DataFrame]:
     """yfinance fallback for chart data（TWSE API 被封鎖時使用）。"""
     try:
@@ -582,7 +591,15 @@ def get_chart_data(symbol: str) -> Optional[Dict]:
     取得指定股票的 K 線 + MA5 + MA60 + MA100 資料，供前端 Lightweight Charts 使用。
     使用 CHART_HISTORY_DAYS（280天）確保 MA 線從起點即可見。
     直接使用 yfinance（Render US 伺服器 TWSE API 被封鎖，跳過 TWSE 減少噪音）。
+    內建 TTL Cache：同一支股票 30 分鐘內不重複呼叫 yfinance，避免觸發 rate limit。
     """
+    # ── TTL Cache 命中 ──────────────────────────────────────────────
+    cached = _chart_cache.get(symbol)
+    if cached is not None:
+        data, ts = cached
+        if _time.time() - ts < _CHART_CACHE_TTL:
+            return data
+
     try:
         df = _fetch_chart_yfinance(symbol, CHART_HISTORY_DAYS)
         if df is None or df.empty or len(df) < 5:
@@ -607,7 +624,14 @@ def get_chart_data(symbol: str) -> Optional[Dict]:
             }
             for idx, row in df.iterrows()
         ]
-        return {"symbol": symbol, "candles": candles}
+        result = {"symbol": symbol, "candles": candles}
+        # 存入 TTL Cache（超過 600 筆時清除最舊的 100 筆）
+        if len(_chart_cache) >= 600:
+            oldest = sorted(_chart_cache.items(), key=lambda x: x[1][1])[:100]
+            for k, _ in oldest:
+                _chart_cache.pop(k, None)
+        _chart_cache[symbol] = (result, _time.time())
+        return result
 
     except Exception as e:
         logger.error("Chart data error for %s: %s", symbol, e)

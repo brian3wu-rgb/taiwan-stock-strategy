@@ -67,6 +67,9 @@ _scan_status = {
     "progress": "尚未執行",
 }
 
+# 圖表 API 並發限制：最多 5 個同時向 yfinance 抓資料，避免 rate limit
+_chart_semaphore: asyncio.Semaphore = None  # type: ignore
+
 
 # ─────────────────────────────────────────────
 #  Pydantic 模型
@@ -177,7 +180,8 @@ class TradeOut(BaseModel):
 
 @app.on_event("startup")
 async def startup_event():
-    import asyncio
+    global _chart_semaphore
+    _chart_semaphore = asyncio.Semaphore(5)  # 同時最多 5 個 chart 請求打 yfinance
     init_db()
     init_trades_table()
     start_scheduler()
@@ -319,12 +323,15 @@ def get_scan_status():
 
 
 @app.get("/chart/{symbol:path}", response_model=ChartResponse, tags=["Chart"])
-def get_chart(symbol: str):
+async def get_chart(symbol: str):
     """
     取得 K 線 + MA5 + MA100 資料供前端圖表使用。
     symbol 範例：2330.TW、0050.TW、6415.TWO
+    並發限制：最多 5 個同時向 yfinance 抓資料（30 分鐘 TTL cache 減少重複請求）。
     """
-    data = get_chart_data(symbol)
+    async with _chart_semaphore:
+        loop = asyncio.get_event_loop()
+        data = await loop.run_in_executor(None, get_chart_data, symbol)
     if not data:
         raise HTTPException(
             status_code=404,
