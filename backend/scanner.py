@@ -477,15 +477,39 @@ def run_scan(stock_list: Optional[List[Dict]] = None) -> List[Dict]:
 #  圖表資料
 # ─────────────────────────────────────────────
 
+def _fetch_chart_yfinance(symbol: str, history_days: int) -> Optional[pd.DataFrame]:
+    """yfinance fallback for chart data（TWSE API 被封鎖時使用）。"""
+    try:
+        import yfinance as yf
+        from datetime import date, timedelta
+        end   = date.today()
+        start = end - timedelta(days=history_days)
+        df = yf.download(symbol, start=start.isoformat(), end=(end + timedelta(days=1)).isoformat(),
+                         auto_adjust=True, progress=False)
+        if df is None or df.empty:
+            return None
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+        df.index = pd.to_datetime(df.index)
+        return df
+    except Exception as e:
+        logger.error("yfinance chart fallback failed for %s: %s", symbol, e)
+        return None
+
+
 def get_chart_data(symbol: str) -> Optional[Dict]:
     """
     取得指定股票的 K 線 + MA5 + MA60 + MA100 資料，供前端 Lightweight Charts 使用。
     使用 CHART_HISTORY_DAYS（280天）確保 MA 線從起點即可見。
+    優先使用 TWSE/TPEx API；被封鎖時 fallback 到 yfinance。
     """
     try:
         df = _fetch_tw_stock(symbol, history_days=CHART_HISTORY_DAYS)
         if df is None or df.empty or len(df) < 5:
-            logger.warning("No chart data for %s", symbol)
+            logger.warning("TWSE API no chart data for %s, trying yfinance", symbol)
+            df = _fetch_chart_yfinance(symbol, CHART_HISTORY_DAYS)
+        if df is None or df.empty or len(df) < 5:
+            logger.warning("No chart data for %s (both TWSE and yfinance failed)", symbol)
             return None
 
         df = df.dropna(subset=["Open", "High", "Low", "Close"])

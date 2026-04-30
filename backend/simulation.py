@@ -73,8 +73,31 @@ def _month_offset(base_year: int, base_month: int, months_back: int):
     return total // 12, total % 12 + 1
 
 
+def _fetch_tw_yfinance(symbol: str, fetch_start: date, fetch_end: date) -> Optional[pd.DataFrame]:
+    """yfinance fallback（TWSE API 被封鎖時使用）。"""
+    try:
+        import yfinance as yf
+        end_str   = (fetch_end + timedelta(days=1)).isoformat()
+        start_str = fetch_start.isoformat()
+        df = yf.download(symbol, start=start_str, end=end_str,
+                         auto_adjust=True, progress=False)
+        if df is None or df.empty:
+            return None
+        # yfinance 1.x 回傳 MultiIndex columns (Price, Ticker)，攤平
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+        df.index = pd.to_datetime(df.index)
+        df.index.name = "Date"
+        return df
+    except Exception as e:
+        logger.error("yfinance fallback failed for %s: %s", symbol, e)
+        return None
+
+
 def _fetch_tw_stock_range(symbol: str, fetch_start: date, fetch_end: date) -> Optional[pd.DataFrame]:
-    """取得指定日期區間的台股資料（含 MA100 計算暖身期）。"""
+    """取得指定日期區間的台股資料（含 MA100 計算暖身期）。
+    優先使用 TWSE/TPEx 官方 API；若 Render 伺服器被封鎖則 fallback 到 yfinance。
+    """
     if symbol.endswith(".TW"):
         stock_no   = symbol[:-3]
         fetch_func = _fetch_twse_month
@@ -95,12 +118,14 @@ def _fetch_tw_stock_range(symbol: str, fetch_start: date, fetch_end: date) -> Op
         all_rows.extend(rows)
         time.sleep(0.3)
 
-    if not all_rows:
-        return None
+    if all_rows:
+        df = pd.DataFrame(all_rows).set_index("Date").sort_index()
+        df = df[~df.index.duplicated(keep="first")]
+        return df
 
-    df = pd.DataFrame(all_rows).set_index("Date").sort_index()
-    df = df[~df.index.duplicated(keep="first")]
-    return df
+    # TWSE API 無資料（Render 伺服器可能被封鎖）→ fallback 到 yfinance
+    logger.warning("TWSE/TPEx API returned no data for %s, falling back to yfinance", symbol)
+    return _fetch_tw_yfinance(symbol, fetch_start, fetch_end)
 
 
 # ─────────────────────────────────────────────
