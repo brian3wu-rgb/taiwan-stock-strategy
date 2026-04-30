@@ -242,8 +242,12 @@ export default function HomePage() {
         )}
       </main>
 
-      {/* ── 掃描進度浮動提示 ── */}
-      <ScanProgressBar triggered={scanning} onDone={handleScanDone} />
+      {/* ── 掃描進度監控（含漸進刷新 + 完成通知）── */}
+      <ScanProgressBar
+        triggered={scanning}
+        onDone={handleScanDone}
+        onPartialRefresh={load}
+      />
     </div>
   )
 }

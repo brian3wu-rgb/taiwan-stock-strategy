@@ -401,6 +401,7 @@ def _process_batch(batch_symbols: List[str], name_map: Dict[str, str]) -> List[D
 
 async def run_scan_async(
     stock_list: Optional[List[Dict]] = None,
+    on_batch_done: Optional[callable] = None,
 ) -> List[Dict]:
     """
     [非同步] 主掃描流程。
@@ -445,6 +446,9 @@ async def run_scan_async(
                 partial(_process_batch, batch, name_map),
             )
             logger.info("Batch %d/%d done: %d signals", idx + 1, num_batches, len(result))
+            # 每批完成後通知主流程（供漸進儲存用）
+            if on_batch_done is not None:
+                on_batch_done(result, idx + 1, num_batches)
             return result
 
     tasks        = [run_batch(b, i) for i, b in enumerate(batches)]

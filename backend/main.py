@@ -205,15 +205,27 @@ async def startup_event():
 # ─────────────────────────────────────────────
 
 async def _background_scan():
-    """非同步背景掃描任務。結果寫入 SQLite 後更新全域狀態。"""
+    """非同步背景掃描任務。每批完成即寫入 DB，支援前端漸進顯示。"""
     _scan_status["running"]  = True
-    _scan_status["progress"] = "掃描進行中..."
+    _scan_status["progress"] = "掃描啟動中..."
     started_at = datetime.now()
 
     try:
-        today   = str(date.today())
-        results = await run_scan_async()
+        today       = str(date.today())
+        accumulated: list = []
 
+        def on_batch(batch_results: list, batch_idx: int, total_batches: int):
+            """每批完成後：累積結果並寫入 DB，前端 polling 即可看到最新資料。"""
+            if batch_results:
+                accumulated.extend(batch_results)
+                save_scan_results(accumulated, today)
+            _scan_status["progress"] = (
+                f"掃描中 {batch_idx}/{total_batches} 批，已找到 {len(accumulated)} 個訊號..."
+            )
+
+        results = await run_scan_async(on_batch_done=on_batch)
+
+        # 最終完整結果（已排序）再存一次，確保排序正確
         if results:
             save_scan_results(results, today)
 
