@@ -7,8 +7,6 @@ services:
     dockerContext: ./backend
     plan: free
     envVars:
-      - key: DATABASE_URL
-        value: ./data/stocks.db
       - key: CORS_ORIGINS
         value: https://taiwan-stock-frontend.onrender.com
       - key: MAX_WORKERS
