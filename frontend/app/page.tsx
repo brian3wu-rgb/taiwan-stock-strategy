@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { getScanResults, triggerScan, ScanResult, ScanResponse } from '@/lib/api'
 import SignalBadge from '@/components/SignalBadge'
 import ScanProgressBar from '@/components/ScanProgressBar'
@@ -25,6 +26,7 @@ function StatCard({ label, value, color }: { label: string; value: number | stri
 //  股票卡片（含迷你圖）
 // ─────────────────────────────────────────────
 function StockCard({ stock, rank }: { stock: ScanResult; rank: number }) {
+  const router   = useRouter()
   const volColor = stock.volume_ratio != null
     ? stock.volume_ratio >= 2 ? 'text-yellow-400'
     : stock.volume_ratio >= 1.5 ? 'text-green-400'
@@ -34,8 +36,22 @@ function StockCard({ stock, rank }: { stock: ScanResult; rank: number }) {
   const shortCode = stock.symbol.replace('.TW', '').replace('.TWO', '')
   const market    = stock.symbol.endsWith('.TWO') ? 'OTC' : 'TSE'
 
+  // 點卡片 → 策略選股頁（模擬交易），market 統一傳 TW（含上櫃）
+  function handleCardClick() {
+    router.push(`/simulate?symbol=${shortCode}&market=TW`)
+  }
+
+  // 全圖按鈕只跳 K 線，不觸發卡片 onClick
+  function handleChartClick(e: React.MouseEvent) {
+    e.stopPropagation()
+    router.push(`/chart/${encodeURIComponent(stock.symbol)}?signal=${stock.signal}&date=${stock.scan_date}`)
+  }
+
   return (
-    <div className="bg-[#161b22] border border-[#30363d] rounded-xl overflow-hidden flex flex-col hover:border-[#58a6ff]/40 transition-colors">
+    <div
+      className="bg-[#161b22] border border-[#30363d] rounded-xl overflow-hidden flex flex-col hover:border-[#58a6ff]/60 hover:bg-[#1c2128] transition-all cursor-pointer"
+      onClick={handleCardClick}
+    >
 
       {/* ── 卡片標頭 ── */}
       <div className="px-3 pt-3 pb-2 flex items-start justify-between gap-2">
@@ -47,12 +63,12 @@ function StockCard({ stock, rank }: { stock: ScanResult; rank: number }) {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <SignalBadge signal={stock.signal} />
-          <Link
-            href={`/chart/${encodeURIComponent(stock.symbol)}?signal=${stock.signal}&date=${stock.scan_date}`}
+          <button
+            onClick={handleChartClick}
             className="text-[10px] text-[#58a6ff] hover:text-white transition-colors"
           >
             全圖 →
-          </Link>
+          </button>
         </div>
       </div>
 
