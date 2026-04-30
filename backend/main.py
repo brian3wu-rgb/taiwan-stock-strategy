@@ -183,14 +183,21 @@ async def startup_event():
     start_scheduler()
     logger.info("API ready. DB initialized. Scheduler running.")
 
-    # 若今日尚無掃描結果，於背景自動補掃
+    # 若今日尚無掃描結果，且已過 15:30（收盤後），才於背景自動補掃
     last_date = get_last_scan_date()
     today_str = str(date.today())
-    if last_date != today_str:
-        logger.info("No scan data for today (%s), triggering startup scan in background.", today_str)
+    now = datetime.now()
+    is_weekday = now.weekday() < 5  # 0=Mon, 4=Fri
+    is_after_close = now.hour > 15 or (now.hour == 15 and now.minute >= 30)
+
+    if last_date != today_str and is_weekday and is_after_close:
+        logger.info("No scan data for today (%s) and market is closed, triggering startup scan.", today_str)
         _scan_status["running"]  = True
         _scan_status["progress"] = "啟動時自動掃描中..."
         asyncio.create_task(_background_scan())
+    else:
+        logger.info("Startup scan skipped. last_date=%s, today=%s, weekday=%s, after_close=%s",
+                    last_date, today_str, is_weekday, is_after_close)
 
 
 # ─────────────────────────────────────────────
