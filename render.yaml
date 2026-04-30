@@ -12,9 +12,9 @@ services:
       - key: CORS_ORIGINS
         value: https://taiwan-stock-frontend.onrender.com
       - key: MAX_WORKERS
-        value: "2"
+        value: "4"
       - key: BATCH_SIZE
-        value: "40"
+        value: "60"
       - key: HISTORY_DAYS
         value: "160"
       - key: CHART_HISTORY_DAYS

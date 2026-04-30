@@ -284,19 +284,72 @@ def _build_date_range() -> Tuple[str, str]:
 
 def _download_batch_sync(symbols: List[str]) -> Dict[str, pd.DataFrame]:
     """
-    [同步] 逐支下載股票歷史資料，使用 TWSE/TPEx 官方 API。
-    回傳 {symbol: DataFrame}，只保留資料筆數 ≥ 105 的股票。
+    [同步] 批次下載股票歷史資料。
+    優先使用 yfinance 一次下載整批（1 次 API call → 全批 40 支）；
+    yfinance 未取得的個股再 fallback 到 TWSE 官方 API 逐支補齊。
     """
     if not symbols:
         return {}
 
     result: Dict[str, pd.DataFrame] = {}
-    for sym in symbols:
+    today  = date.today()
+    start  = today - timedelta(days=HISTORY_DAYS + 90)  # 加緩衝確保 MA100
+    end    = today + timedelta(days=1)
+
+    # ── yfinance 批次下載 ────────────────────────────────────────────
+    try:
+        raw = yf.download(
+            symbols,
+            start=start.isoformat(),
+            end=end.isoformat(),
+            auto_adjust=True,
+            progress=False,
+            group_by="ticker",
+        )
+
+        if raw is not None and not raw.empty:
+            fetched: set = set()
+
+            if len(symbols) == 1:
+                # 單支：flat columns
+                sym = symbols[0]
+                df  = raw.copy()
+                if isinstance(df.columns, pd.MultiIndex):
+                    df.columns = df.columns.get_level_values(0)
+                df.index = pd.to_datetime(df.index)
+                df = df.dropna(subset=["Close"])
+                if len(df) >= 105:
+                    result[sym] = df
+                    fetched.add(sym)
+            else:
+                # 多支：MultiIndex (Ticker, Price)
+                for sym in symbols:
+                    try:
+                        df = raw[sym].copy()
+                        df.index = pd.to_datetime(df.index)
+                        df = df.dropna(subset=["Close"])
+                        if len(df) >= 105:
+                            result[sym] = df
+                            fetched.add(sym)
+                    except (KeyError, Exception):
+                        pass
+
+            logger.debug("yfinance batch: %d/%d fetched", len(fetched), len(symbols))
+
+    except Exception as e:
+        logger.warning("yfinance batch failed: %s — will fallback to TWSE", e)
+
+    # ── TWSE fallback：只補 yfinance 沒抓到的 ────────────────────────
+    missing = [s for s in symbols if s not in result]
+    if missing:
+        logger.debug("TWSE fallback for %d missing stocks", len(missing))
+    for sym in missing:
         df = _fetch_tw_stock(sym)
         if df is not None and not df.empty and len(df) >= 105:
             result[sym] = df
         elif df is not None:
             logger.debug("Insufficient data for %s: %d rows", sym, len(df))
+
     return result
 
 
