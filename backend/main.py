@@ -12,6 +12,7 @@ API 路由：
   GET  /chart/{symbol} → K 線 + MA 資料
 """
 
+import asyncio
 import os
 import logging
 from datetime import date, datetime
