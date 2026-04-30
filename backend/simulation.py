@@ -532,6 +532,21 @@ def init_trades_table() -> None:
     conn.close()
 
 
+def get_all_trades() -> List[Dict]:
+    """取得所有交易記錄（跨所有股票），供交易紀錄總覽頁面使用。"""
+    conn = _connect()
+    cur  = conn.cursor()
+    cur.execute("SELECT * FROM trades ORDER BY entry_date DESC, created_at DESC")
+    if _is_postgres():
+        cols = [d.name for d in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+    else:
+        cols = [d[0] for d in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+
 def get_trades(symbol: str, market: str) -> List[Dict]:
     ph   = "%s" if _is_postgres() else "?"
     conn = _connect()

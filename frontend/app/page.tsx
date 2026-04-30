@@ -176,6 +176,12 @@ export default function HomePage() {
               </span>
             )}
             <Link
+              href="/trades"
+              className="px-3 py-1.5 text-xs bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] rounded-lg transition-colors"
+            >
+              📋 交易紀錄
+            </Link>
+            <Link
               href="/simulate"
               className="px-3 py-1.5 text-xs bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] rounded-lg transition-colors"
             >

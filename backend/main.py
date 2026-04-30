@@ -32,7 +32,7 @@ from scanner import run_scan_async, get_chart_data
 from scheduler import start_scheduler
 from simulation import (
     init_trades_table, get_simulation_data,
-    get_trades, add_trade, record_exit, delete_trade,
+    get_trades, get_all_trades, add_trade, record_exit, delete_trade,
 )
 
 logging.basicConfig(
@@ -343,6 +343,14 @@ async def get_chart(symbol: str):
 # ─────────────────────────────────────────────
 #  模擬交易路由
 # ─────────────────────────────────────────────
+
+@app.get("/simulate/all-trades", response_model=List[TradeOut], tags=["Simulate"])
+def simulate_get_all_trades():
+    """取得所有股票的交易記錄（交易紀錄總覽頁面使用）。
+    注意：此路由必須在 /simulate/{symbol} 之前定義，避免路徑衝突。
+    """
+    return get_all_trades()
+
 
 @app.get("/simulate/{symbol}", response_model=SimDataResponse, tags=["Simulate"])
 def simulate_get(

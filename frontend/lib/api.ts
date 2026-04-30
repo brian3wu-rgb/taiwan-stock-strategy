@@ -73,6 +73,17 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
   return res.json() as Promise<T>
 }
 
+async function patch<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'PATCH',
+    cache: 'no-store',
+    headers: body ? { 'Content-Type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  if (!res.ok) throw new Error(`API PATCH ${path} → ${res.status}`)
+  return res.json() as Promise<T>
+}
+
 async function del<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { method: 'DELETE', cache: 'no-store' })
   if (!res.ok) throw new Error(`API DELETE ${path} → ${res.status}`)
@@ -180,7 +191,10 @@ export const addMyTrade = (symbol: string, market: string, body: TradeIn) =>
 
 /** 記錄出場 */
 export const recordExit = (id: number, body: ExitIn) =>
-  post<{ updated: boolean }>(`/simulate/trades/${id}/exit`, body)
+  patch<{ updated: boolean }>(`/simulate/trades/${id}/exit`, body)
+
+/** 取得所有股票的交易記錄（交易紀錄總覽） */
+export const getAllTrades = () => get<Trade[]>('/simulate/all-trades')
 
 /** 刪除交易記錄 */
 export const deleteMyTrade = (id: number) =>
