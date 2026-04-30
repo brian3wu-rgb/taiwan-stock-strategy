@@ -570,15 +570,12 @@ def get_chart_data(symbol: str) -> Optional[Dict]:
     """
     取得指定股票的 K 線 + MA5 + MA60 + MA100 資料，供前端 Lightweight Charts 使用。
     使用 CHART_HISTORY_DAYS（280天）確保 MA 線從起點即可見。
-    優先使用 TWSE/TPEx API；被封鎖時 fallback 到 yfinance。
+    直接使用 yfinance（Render US 伺服器 TWSE API 被封鎖，跳過 TWSE 減少噪音）。
     """
     try:
-        df = _fetch_tw_stock(symbol, history_days=CHART_HISTORY_DAYS)
+        df = _fetch_chart_yfinance(symbol, CHART_HISTORY_DAYS)
         if df is None or df.empty or len(df) < 5:
-            logger.warning("TWSE API no chart data for %s, trying yfinance", symbol)
-            df = _fetch_chart_yfinance(symbol, CHART_HISTORY_DAYS)
-        if df is None or df.empty or len(df) < 5:
-            logger.warning("No chart data for %s (both TWSE and yfinance failed)", symbol)
+            logger.warning("No chart data for %s (yfinance failed)", symbol)
             return None
 
         df = df.dropna(subset=["Open", "High", "Low", "Close"])
