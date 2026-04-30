@@ -15,6 +15,13 @@ from typing import Optional, List, Dict, Any
 
 import pandas as pd
 import requests
+import yfinance as yf
+
+# yfinance TzCache 使用 /tmp 避免 Docker 容器權限問題
+try:
+    yf.set_tz_cache_location("/tmp/yfinance_tz_cache")
+except Exception:
+    pass
 
 from indicators import calculate_ma, check_long_signal, check_short_signal
 from scanner import _fetch_tw_stock, _fetch_twse_month, _fetch_tpex_month

@@ -31,6 +31,12 @@ import yfinance as yf
 import requests
 from bs4 import BeautifulSoup
 
+# yfinance TzCache 使用 /tmp 避免 Docker 容器權限問題
+try:
+    yf.set_tz_cache_location("/tmp/yfinance_tz_cache")
+except Exception:
+    pass
+
 from indicators import (
     calculate_ma,
     check_long_signal,
@@ -145,8 +151,14 @@ def get_all_tw_stocks(limit: int = 0) -> List[Dict]:
     except Exception as e:
         logger.error("Failed to fetch stock list: %s", e)
 
-    logger.warning("Using fallback popular stocks list")
-    return POPULAR_STOCKS
+    # 使用完整備援清單（1,970 支，本機從 TWSE 抓取後固化在 repo 中）
+    try:
+        from tw_stocks_fallback import TW_STOCKS_FALLBACK
+        logger.warning("TWSE ISIN blocked — using built-in fallback list (%d stocks)", len(TW_STOCKS_FALLBACK))
+        return TW_STOCKS_FALLBACK
+    except ImportError:
+        logger.warning("Fallback list not found — using popular stocks list")
+        return POPULAR_STOCKS
 
 
 # ─────────────────────────────────────────────
