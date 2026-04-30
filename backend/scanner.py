@@ -503,13 +503,24 @@ async def run_scan_async(
     async def run_batch(batch: List[str], idx: int) -> List[Dict]:
         async with semaphore:
             # 批次間錯開啟動時間，減少同時發出請求
-            await asyncio.sleep(idx * 0.4 % 2.0)
+            await asyncio.sleep(idx * 1.0 % 4.0)
             logger.info("Batch %d/%d start: %s → %s",
                         idx + 1, num_batches, batch[0], batch[-1])
-            result = await loop.run_in_executor(
-                executor,
-                partial(_process_batch, batch, name_map),
-            )
+            try:
+                result = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        executor,
+                        partial(_process_batch, batch, name_map),
+                    ),
+                    timeout=360.0,  # 每批最多等 6 分鐘，逾時跳過
+                )
+            except asyncio.TimeoutError:
+                logger.warning("Batch %d/%d timed out (>360s), skipping",
+                               idx + 1, num_batches)
+                result = []
+            except Exception as exc:
+                logger.error("Batch %d/%d error: %s", idx + 1, num_batches, exc)
+                result = []
             logger.info("Batch %d/%d done: %d signals", idx + 1, num_batches, len(result))
             # 每批完成後通知主流程（供漸進儲存用）
             if on_batch_done is not None:

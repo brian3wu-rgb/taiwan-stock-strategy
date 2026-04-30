@@ -7,10 +7,12 @@ services:
     dockerContext: ./backend
     plan: free
     envVars:
+      - key: DATABASE_URL
+        sync: false       # 手動在 Dashboard 設定 Neon PostgreSQL URL，render.yaml 不覆蓋
       - key: CORS_ORIGINS
         value: https://taiwan-stock-frontend.onrender.com
       - key: MAX_WORKERS
-        value: "4"
+        value: "2"        # 降低並行數避免 Yahoo Finance rate limit
       - key: BATCH_SIZE
         value: "60"
       - key: HISTORY_DAYS
