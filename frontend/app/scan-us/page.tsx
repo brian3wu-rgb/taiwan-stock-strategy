@@ -8,7 +8,40 @@ import SignalBadge from '@/components/SignalBadge'
 import ScanProgressBar from '@/components/ScanProgressBar'
 import MiniChart from '@/components/MiniChart'
 
-type FilterType = 'ALL' | 'LONG' | 'SHORT'
+type FilterType  = 'ALL' | 'LONG' | 'SHORT'
+type IndexFilter = 'ALL' | 'SOX' | 'NDX'
+
+// ─────────────────────────────────────────────
+//  指數分類（前端 hardcode，不需後端）
+// ─────────────────────────────────────────────
+
+const SOX_SYMBOLS = new Set([
+  // SOX + NDX 重疊
+  'NVDA','AMD','AVGO','QCOM','TXN','MU','AMAT','LRCX','KLAC',
+  'ADI','MCHP','ON','MPWR','MRVL','INTC','ASML','ARM','NXPI','GFS',
+  // SOX only
+  'SWKS','QRVO','ENTG','TSM','STM','CRUS','ACLS','COHU','MKSI','POWI',
+])
+
+const NDX_SYMBOLS = new Set([
+  // NDX + SOX 重疊
+  'NVDA','AMD','AVGO','QCOM','TXN','MU','AMAT','LRCX','KLAC',
+  'ADI','MCHP','ON','MPWR','MRVL','INTC','ASML','ARM','NXPI','GFS',
+  // NDX only
+  'AAPL','MSFT','AMZN','META','GOOG','TSLA','COST','NFLX','ADBE',
+  'CSCO','AMGN','BKNG','ISRG','REGN','PANW','SNPS','CDNS','FTNT',
+  'CRWD','TEAM','WDAY','ZS','DXCM','IDXX','BIIB','ILMN','MRNA',
+  'MELI','PDD','ABNB','EBAY','PYPL','ORLY','ROST','DLTR','MNST',
+  'SBUX','LULU','PCAR','PAYX','FAST','ODFL','VRSK','CTSH','ANSS',
+  'MDLZ','KDP','EXC','XEL','CEG','ENPH','GEHC','ALGN','EA','TTWO',
+])
+
+function getIndices(symbol: string): ('SOX' | 'NDX')[] {
+  const indices: ('SOX' | 'NDX')[] = []
+  if (SOX_SYMBOLS.has(symbol)) indices.push('SOX')
+  if (NDX_SYMBOLS.has(symbol)) indices.push('NDX')
+  return indices
+}
 
 // ─────────────────────────────────────────────
 //  統計卡片
@@ -49,10 +82,16 @@ function USStockCard({ stock, rank }: { stock: ScanResult; rank: number }) {
     >
       {/* ── 卡片標頭 ── */}
       <div className="px-3 pt-3 pb-2 flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-2 min-w-0 flex-wrap">
           <span className="text-[10px] text-[#8b949e] shrink-0">#{rank}</span>
           <span className="font-mono font-bold text-[#58a6ff] text-sm">{stock.symbol}</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-blue-900/60 text-blue-300 shrink-0">US</span>
+          {getIndices(stock.symbol).map(idx => (
+            <span key={idx} className={`text-[10px] px-1.5 py-0.5 rounded font-semibold shrink-0 ${
+              idx === 'SOX'
+                ? 'bg-orange-900/60 text-orange-300'
+                : 'bg-blue-900/60 text-blue-300'
+            }`}>{idx}</span>
+          ))}
           <span className="text-sm font-medium truncate">{stock.name}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -110,11 +149,12 @@ function USStockCard({ stock, rank }: { stock: ScanResult; rank: number }) {
 //  美股選股主頁
 // ─────────────────────────────────────────────
 export default function USScanPage() {
-  const [data,     setData]     = useState<ScanResponse | null>(null)
-  const [loading,  setLoading]  = useState(true)
-  const [filter,   setFilter]   = useState<FilterType>('ALL')
-  const [error,    setError]    = useState<string | null>(null)
-  const [scanning, setScanning] = useState(false)
+  const [data,        setData]        = useState<ScanResponse | null>(null)
+  const [loading,     setLoading]     = useState(true)
+  const [filter,      setFilter]      = useState<FilterType>('ALL')
+  const [indexFilter, setIndexFilter] = useState<IndexFilter>('ALL')
+  const [error,       setError]       = useState<string | null>(null)
+  const [scanning,    setScanning]    = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -146,10 +186,18 @@ export default function USScanPage() {
     load()
   }
 
-  const allResults = data?.results ?? []
-  const longCount  = allResults.filter(r => r.signal === 'LONG').length
-  const shortCount = allResults.filter(r => r.signal === 'SHORT').length
-  const filtered   = filter === 'ALL' ? allResults : allResults.filter(r => r.signal === filter)
+  const allResults  = data?.results ?? []
+  const longCount   = allResults.filter(r => r.signal === 'LONG').length
+  const shortCount  = allResults.filter(r => r.signal === 'SHORT').length
+  const saxCount    = allResults.filter(r => SOX_SYMBOLS.has(r.symbol)).length
+  const ndxCount    = allResults.filter(r => NDX_SYMBOLS.has(r.symbol)).length
+
+  const filtered = allResults
+    .filter(r => filter === 'ALL'      || r.signal === filter)
+    .filter(r => indexFilter === 'ALL'
+      || (indexFilter === 'SOX' && SOX_SYMBOLS.has(r.symbol))
+      || (indexFilter === 'NDX' && NDX_SYMBOLS.has(r.symbol))
+    )
 
   return (
     <div className="min-h-screen bg-[#0d1117]">
@@ -202,14 +250,44 @@ export default function USScanPage() {
 
         {/* ── 統計卡 ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard label="掃描結果" value={data?.total ?? 0}       color="text-white" />
-          <StatCard label="做多訊號" value={longCount}               color="text-green-400" />
-          <StatCard label="做空訊號" value={shortCount}              color="text-red-400" />
-          <StatCard label="掃描日期" value={data?.scan_date ?? '—'}  color="text-[#e3b341]" />
+          <StatCard label="費半 SOX 訊號"    value={saxCount}               color="text-orange-400" />
+          <StatCard label="納斯達克 NDX 訊號" value={ndxCount}               color="text-blue-400" />
+          <StatCard label="做多訊號"          value={longCount}               color="text-green-400" />
+          <StatCard label="做空訊號"          value={shortCount}              color="text-red-400" />
         </div>
 
-        {/* ── 篩選標籤 ── */}
-        <div className="flex gap-2">
+        {/* ── 指數篩選 ── */}
+        <div className="flex gap-2 items-center">
+          <span className="text-[11px] text-[#8b949e]">指數：</span>
+          <button onClick={() => setIndexFilter('ALL')}
+            className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+              indexFilter === 'ALL'
+                ? 'bg-[#58a6ff] text-[#0d1117]'
+                : 'bg-[#21262d] text-[#8b949e] hover:text-white border border-[#30363d]'
+            }`}>
+            全部 ({allResults.length})
+          </button>
+          <button onClick={() => setIndexFilter('SOX')}
+            className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+              indexFilter === 'SOX'
+                ? 'bg-orange-600 text-white'
+                : 'bg-[#21262d] text-[#8b949e] hover:text-white border border-[#30363d]'
+            }`}>
+            🔶 費半 SOX ({saxCount})
+          </button>
+          <button onClick={() => setIndexFilter('NDX')}
+            className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+              indexFilter === 'NDX'
+                ? 'bg-blue-600 text-white'
+                : 'bg-[#21262d] text-[#8b949e] hover:text-white border border-[#30363d]'
+            }`}>
+            🔷 納斯達克 NDX ({ndxCount})
+          </button>
+        </div>
+
+        {/* ── 訊號篩選 ── */}
+        <div className="flex gap-2 items-center">
+          <span className="text-[11px] text-[#8b949e]">訊號：</span>
           {(['ALL', 'LONG', 'SHORT'] as const).map(f => (
             <button
               key={f}
@@ -218,11 +296,11 @@ export default function USScanPage() {
                 filter === f
                   ? f === 'LONG'  ? 'bg-green-600 text-white'
                   : f === 'SHORT' ? 'bg-red-600 text-white'
-                  :                 'bg-blue-600 text-white'
+                  :                 'bg-[#58a6ff] text-[#0d1117]'
                   : 'bg-[#21262d] text-[#8b949e] hover:text-white border border-[#30363d]'
               }`}
             >
-              {f === 'ALL' ? `全部 (${allResults.length})` : f === 'LONG' ? `做多 (${longCount})` : `做空 (${shortCount})`}
+              {f === 'ALL' ? `全部` : f === 'LONG' ? `做多 (${longCount})` : `做空 (${shortCount})`}
             </button>
           ))}
         </div>
