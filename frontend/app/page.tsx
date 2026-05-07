@@ -187,6 +187,12 @@ export default function HomePage() {
             >
               📋 交易紀錄
             </Link>
+            <Link
+              href="/simulate"
+              className="px-3 py-1.5 text-xs bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] rounded-lg transition-colors"
+            >
+              📊 模擬交易
+            </Link>
             <button
               onClick={load}
               className="px-3 py-1.5 text-xs bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] rounded-lg transition-colors"
