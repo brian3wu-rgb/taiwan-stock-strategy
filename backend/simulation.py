@@ -31,6 +31,42 @@ logger = logging.getLogger(__name__)
 # 歷史資料天數：確保 MA100 + 30 日顯示有足夠資料
 HISTORY_DAYS_SIM = 220
 
+# ─────────────────────────────────────────────
+#  股票名稱查詢（快取）
+# ─────────────────────────────────────────────
+
+_tw_name_cache: Optional[Dict[str, str]] = None   # short_code → 股票名稱
+
+
+def _get_stock_name(symbol: str, market: str) -> str:
+    """根據股票代號與市場，回傳股票名稱（未找到時回傳空字串）。"""
+    if market == "US":
+        try:
+            from scanner import US_STOCKS
+            us_map = {s["symbol"]: s["name"] for s in US_STOCKS}
+            return us_map.get(symbol.upper(), "")
+        except Exception:
+            return ""
+    else:
+        global _tw_name_cache
+        if _tw_name_cache is None:
+            _tw_name_cache = {}
+            try:
+                from tw_stocks_fallback import TW_STOCKS_FALLBACK
+                for s in TW_STOCKS_FALLBACK:
+                    short = s["symbol"].replace(".TW", "").replace(".TWO", "")
+                    _tw_name_cache[short] = s["name"]
+            except ImportError:
+                try:
+                    from scanner import POPULAR_STOCKS
+                    for s in POPULAR_STOCKS:
+                        short = s["symbol"].replace(".TW", "").replace(".TWO", "")
+                        _tw_name_cache[short] = s["name"]
+                except Exception:
+                    pass
+        short = symbol.replace(".TW", "").replace(".TWO", "").split(".")[0]
+        return _tw_name_cache.get(short, "")
+
 # 顯示天數
 DISPLAY_DAYS = 30
 
@@ -484,12 +520,13 @@ def get_simulation_data(symbol: str, market: str,
     rows = _simulate_auto(rows, shares, usd_twd, is_us=(market == "US"))
 
     return {
-        "symbol":        display_symbol,
-        "symbol_full":   sym_full,
-        "market":        market,
-        "usd_twd":       round(usd_twd, 2),
+        "symbol":         display_symbol,
+        "symbol_full":    sym_full,
+        "name":           _get_stock_name(display_symbol, market),
+        "market":         market,
+        "usd_twd":        round(usd_twd, 2),
         "default_shares": shares,
-        "rows":          rows,
+        "rows":           rows,
     }
 
 

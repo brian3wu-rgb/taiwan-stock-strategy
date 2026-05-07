@@ -147,6 +147,7 @@ class SimRow(BaseModel):
 class SimDataResponse(BaseModel):
     symbol:         str
     symbol_full:    str
+    name:           Optional[str] = ""
     market:         str
     usd_twd:        float
     default_shares: int
@@ -303,6 +304,43 @@ async def _background_us_scan():
 # ─────────────────────────────────────────────
 #  路由
 # ─────────────────────────────────────────────
+
+# ─────────────────────────────────────────────
+#  股票清單（供前端自動完成）
+# ─────────────────────────────────────────────
+
+_tw_stock_list_cache: Optional[list] = None
+
+
+@app.get("/stocks/tw", tags=["Stocks"])
+def get_tw_stock_list():
+    """
+    回傳台股代號 + 名稱清單（供前端搜尋自動完成）。
+    使用靜態備援清單，回應極快（< 5ms）。
+    格式：[{"symbol": "2330", "name": "台積電"}, ...]
+    """
+    global _tw_stock_list_cache
+    if _tw_stock_list_cache is None:
+        try:
+            from tw_stocks_fallback import TW_STOCKS_FALLBACK
+            _tw_stock_list_cache = [
+                {
+                    "symbol": s["symbol"].replace(".TW", "").replace(".TWO", ""),
+                    "name":   s["name"],
+                }
+                for s in TW_STOCKS_FALLBACK
+            ]
+        except ImportError:
+            from scanner import POPULAR_STOCKS
+            _tw_stock_list_cache = [
+                {
+                    "symbol": s["symbol"].replace(".TW", "").replace(".TWO", ""),
+                    "name":   s["name"],
+                }
+                for s in POPULAR_STOCKS
+            ]
+    return _tw_stock_list_cache
+
 
 @app.get("/", tags=["General"])
 def root():

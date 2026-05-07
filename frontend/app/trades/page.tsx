@@ -2,7 +2,36 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { getAllTrades, deleteMyTrade, Trade } from '@/lib/api'
+import { getAllTrades, deleteMyTrade, getTWStockList, Trade } from '@/lib/api'
+
+// 美股名稱（從 scanner US_STOCKS 對應，前端直接 hardcode 避免額外 API）
+const US_NAMES: Record<string, string> = {
+  AAPL:'Apple', MSFT:'Microsoft', NVDA:'NVIDIA', AMZN:'Amazon', META:'Meta',
+  GOOG:'Alphabet', TSLA:'Tesla', AVGO:'Broadcom', COST:'Costco',
+  AMD:'AMD', QCOM:'Qualcomm', TXN:'Texas Instruments', MU:'Micron',
+  AMAT:'Applied Materials', LRCX:'Lam Research', KLAC:'KLA Corp',
+  ADI:'Analog Devices', MCHP:'Microchip', ON:'ON Semiconductor',
+  MPWR:'Monolithic Power', MRVL:'Marvell', INTC:'Intel',
+  ASML:'ASML', ARM:'Arm Holdings', NXPI:'NXP Semi', GFS:'GlobalFoundries',
+  SWKS:'Skyworks', QRVO:'Qorvo', ENTG:'Entegris', TSM:'TSMC ADR',
+  STM:'STMicro', CRUS:'Cirrus Logic', ACLS:'Axcelis', COHU:'Cohu',
+  MKSI:'MKS Instruments', POWI:'Power Integrations',
+  ADBE:'Adobe', CSCO:'Cisco', SNPS:'Synopsys', CDNS:'Cadence',
+  PANW:'Palo Alto', FTNT:'Fortinet', CRWD:'CrowdStrike',
+  TEAM:'Atlassian', WDAY:'Workday', ZS:'Zscaler',
+  NFLX:'Netflix', MELI:'MercadoLibre', PDD:'PDD Holdings',
+  ABNB:'Airbnb', EBAY:'eBay', PYPL:'PayPal', ORLY:"O'Reilly",
+  ROST:'Ross Stores', DLTR:'Dollar Tree', MNST:'Monster Bev',
+  SBUX:'Starbucks', LULU:'Lululemon',
+  AMGN:'Amgen', BKNG:'Booking', ISRG:'Intuitive Surgical',
+  REGN:'Regeneron', BIIB:'Biogen', ILMN:'Illumina', MRNA:'Moderna',
+  DXCM:'DexCom', IDXX:'IDEXX', GEHC:'GE HealthCare', ALGN:'Align Tech',
+  PCAR:'PACCAR', PAYX:'Paychex', FAST:'Fastenal', ODFL:'Old Dominion',
+  VRSK:'Verisk', CTSH:'Cognizant', ANSS:'ANSYS', MDLZ:'Mondelez',
+  KDP:'Keurig Dr Pepper', EXC:'Exelon', XEL:'Xcel Energy',
+  CEG:'Constellation Energy', ENPH:'Enphase', EA:'Electronic Arts',
+  TTWO:'Take-Two',
+}
 
 // ─────────────────────────────────────────────
 //  Helpers
@@ -54,6 +83,7 @@ export default function TradesPage() {
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState<string | null>(null)
   const [filter,  setFilter]  = useState<FilterType>('ALL')
+  const [nameMap, setNameMap] = useState<Record<string, string>>(US_NAMES)
 
   const load = useCallback(async () => {
     try {
@@ -65,6 +95,19 @@ export default function TradesPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // 台股名稱查詢（有 TW 交易才載）
+  useEffect(() => {
+    if (trades.some(t => t.market === 'TW')) {
+      getTWStockList().then(list => {
+        setNameMap(prev => {
+          const next = { ...prev }
+          list.forEach(s => { next[s.symbol] = s.name })
+          return next
+        })
+      }).catch(() => {})
+    }
+  }, [trades])
 
   const handleDelete = async (id: number) => {
     if (!confirm('確定刪除此筆交易記錄？')) return
@@ -216,6 +259,11 @@ export default function TradesPage() {
                               {t.market}
                             </span>
                           </div>
+                          {nameMap[t.symbol] && (
+                            <div className="text-[10px] text-[#8b949e] mt-0.5 pl-0.5">
+                              {nameMap[t.symbol]}
+                            </div>
+                          )}
                         </td>
 
                         {/* 方向 */}

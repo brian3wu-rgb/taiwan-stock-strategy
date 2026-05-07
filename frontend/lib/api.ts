@@ -132,11 +132,20 @@ export interface SimRow {
 export interface SimData {
   symbol:         string
   symbol_full:    string
+  name:           string   // 股票名稱（台積電 / Apple 等）
   market:         string   // 'TW' | 'US'
   usd_twd:        number
   default_shares: number
   rows:           SimRow[]
 }
+
+export interface StockItem {
+  symbol: string   // 短代號，如 2330 / AAPL
+  name:   string
+}
+
+/** 取得台股代號 + 名稱清單（前端搜尋自動完成） */
+export const getTWStockList = () => get<StockItem[]>('/stocks/tw')
 
 export interface Trade {
   id:          number

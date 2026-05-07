@@ -5,7 +5,8 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   getSimulationData, getMyTrades, addMyTrade, recordExit, deleteMyTrade,
-  SimData, SimRow, Trade, TradeIn, ExitIn,
+  getTWStockList,
+  SimData, SimRow, Trade, TradeIn, ExitIn, StockItem,
 } from '@/lib/api'
 import MiniChart from '@/components/MiniChart'
 
@@ -191,6 +192,11 @@ function SimulatePage() {
   const [rangeStart, setRangeStart] = useState('')
   const [rangeEnd,   setRangeEnd]   = useState('')
 
+  // 台股自動完成
+  const [twStockList,     setTwStockList]     = useState<StockItem[]>([])
+  const [suggestions,     setSuggestions]     = useState<StockItem[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+
   // Entry form
   const [formDir,    setFormDir]    = useState<'多單' | '空單'>('多單')
   const [formDate,   setFormDate]   = useState('')
@@ -219,9 +225,39 @@ function SimulatePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, loadData])
 
-  const handleSearch = () => {
-    const sym = inputSymbol.trim().toUpperCase()
-    if (sym) router.push(`/simulate?symbol=${sym}&market=${market}`)
+  // 載入台股清單（切換到 TW 時才載，只載一次）
+  useEffect(() => {
+    if (market === 'TW' && twStockList.length === 0) {
+      getTWStockList().then(setTwStockList).catch(() => {})
+    }
+  }, [market]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 根據輸入更新自動完成建議
+  useEffect(() => {
+    if (market !== 'TW' || !inputSymbol || twStockList.length === 0) {
+      setSuggestions([]); return
+    }
+    const q = inputSymbol.trim()
+    if (!q) { setSuggestions([]); return }
+    const lower = q.toLowerCase()
+    const matches = twStockList.filter(s =>
+      s.symbol.startsWith(q) ||          // 代號前綴
+      s.name.includes(q)                 // 名稱包含
+    ).slice(0, 8)
+    setSuggestions(matches)
+  }, [inputSymbol, market, twStockList])
+
+  const handleSearch = (sym?: string) => {
+    const s = (sym ?? inputSymbol).trim().toUpperCase()
+    if (!s) return
+    setShowSuggestions(false)
+    router.push(`/simulate?symbol=${s}&market=${market}`)
+  }
+
+  const handleSuggestionClick = (item: StockItem) => {
+    setInputSymbol(item.symbol)
+    setShowSuggestions(false)
+    router.push(`/simulate?symbol=${item.symbol}&market=${market}`)
   }
 
   // Apply date range to currently loaded symbol
@@ -393,13 +429,37 @@ function SimulatePage() {
                 </button>
               ))}
             </div>
-            <input type="text" value={inputSymbol}
-              onChange={e => setInputSymbol(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSearch()}
-              placeholder={market === 'TW' ? '台股代碼（如 2330）' : '美股代碼（如 NVDA）'}
-              className="flex-1 min-w-[180px] bg-[#0d1117] border border-[#30363d] rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-[#58a6ff]"
-            />
-            <button onClick={handleSearch} disabled={loading}
+            <div className="relative flex-1 min-w-[180px]">
+              <input
+                type="text"
+                value={inputSymbol}
+                onChange={e => { setInputSymbol(e.target.value); setShowSuggestions(true) }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') handleSearch()
+                  if (e.key === 'Escape') setShowSuggestions(false)
+                }}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                placeholder={market === 'TW' ? '台股代碼或名稱（如 2330 或 台積電）' : '美股代碼（如 NVDA）'}
+                className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-[#58a6ff]"
+              />
+              {/* 自動完成下拉 */}
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-[#161b22] border border-[#30363d] rounded-lg shadow-2xl overflow-hidden">
+                  {suggestions.map(s => (
+                    <button
+                      key={s.symbol}
+                      onMouseDown={() => handleSuggestionClick(s)}
+                      className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-[#21262d] transition-colors text-left"
+                    >
+                      <span className="font-mono text-sm font-bold text-[#58a6ff] w-14 shrink-0">{s.symbol}</span>
+                      <span className="text-sm text-[#e6edf3]">{s.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button onClick={() => handleSearch()} disabled={loading}
               className="px-5 py-2 bg-[#238636] hover:bg-[#2ea043] text-white rounded-lg text-sm font-medium disabled:opacity-50">
               {loading ? '查詢中...' : '查詢'}
             </button>
@@ -413,6 +473,9 @@ function SimulatePage() {
         {hasData && (
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-2xl font-bold font-mono">{data!.symbol}</span>
+            {data!.name && (
+              <span className="text-lg font-semibold text-[#e6edf3]">{data!.name}</span>
+            )}
             <span className={`px-2 py-0.5 rounded text-xs font-bold ${isUS ? 'bg-blue-900 text-blue-300' : 'bg-purple-900 text-purple-300'}`}>
               {isUS ? '美股' : '台股'}
             </span>
