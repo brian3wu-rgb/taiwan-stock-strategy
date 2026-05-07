@@ -97,8 +97,8 @@ export default function TradesPage() {
       <header className="bg-[#161b22] border-b border-[#30363d] sticky top-0 z-40">
         <div className="max-w-screen-xl mx-auto px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/" className="text-[#58a6ff] text-sm hover:underline">← 返回選股</Link>
-            <Link href="/simulate" className="text-[#8b949e] text-sm hover:text-white transition-colors">策略選股</Link>
+            <Link href="/" className="text-[#58a6ff] text-sm hover:underline">← 台股選股</Link>
+            <Link href="/scan-us" className="text-[#8b949e] text-sm hover:text-white transition-colors">🇺🇸 美股選股</Link>
             <span className="text-sm font-semibold">📋 交易紀錄</span>
           </div>
           <button onClick={load}

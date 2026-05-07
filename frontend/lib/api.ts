@@ -167,6 +167,16 @@ export interface ExitIn {
   exit_price: number
 }
 
+/** 取得美股掃描結果 */
+export const getUSScanResults  = (signal?: string) =>
+  get<ScanResponse>(`/scan/us${signal ? `?signal=${signal}` : ''}`)
+
+/** 觸發美股背景掃描 */
+export const triggerUSScan     = () => post<{ message: string }>('/scan/us/trigger')
+
+/** 查詢美股掃描進度 */
+export const getUSScanStatus   = () => get<ScanStatus>('/scan/us/status')
+
 /** 取得模擬交易資料（start_date / end_date 不傳則預設最近 30 個交易日） */
 export const getSimulationData = (
   symbol: string, market: string,

@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>即時策略計算 Mockup</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .page-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .page-title span { color: #60a5fa; }
+
+    /* Input Card */
+    .card {
+      background: #1e2130;
+      border: 1px solid #2d3148;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 16px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 12px;
+      align-items: flex-end;
+    }
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .input-group label {
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .input-group input {
+      background: #0f1117;
+      border: 1px solid #2d3148;
+      border-radius: 8px;
+      color: #e2e8f0;
+      padding: 10px 14px;
+      font-size: 15px;
+      width: 160px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .input-group input:focus {
+      border-color: #60a5fa;
+    }
+    .input-group input.symbol { width: 120px; font-weight: 700; letter-spacing: 0.05em; }
+    .input-group input.price { width: 140px; color: #fbbf24; font-weight: 700; }
+
+    .btn-calc {
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 24px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+    .btn-calc:hover { background: #2563eb; }
+
+    /* Stock Info Bar */
+    .stock-info-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 0;
+      border-bottom: 1px solid #2d3148;
+      margin-bottom: 16px;
+    }
+    .stock-name { font-size: 18px; font-weight: 700; color: #fff; }
+    .stock-code { font-size: 13px; color: #94a3b8; }
+    .price-badge {
+      margin-left: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+    .price-label { font-size: 11px; color: #94a3b8; }
+    .price-value { font-size: 22px; font-weight: 800; color: #fbbf24; }
+    .vs-close {
+      font-size: 12px;
+      color: #f87171;
+    }
+    .vs-close.up { color: #34d399; }
+
+    /* Signal Banner */
+    .signal-banner {
+      border-radius: 10px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .signal-banner.buy { background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.3); }
+    .signal-banner.sell { background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.3); }
+    .signal-banner.hold { background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3); }
+
+    .signal-icon { font-size: 32px; }
+    .signal-text h3 { font-size: 18px; font-weight: 700; }
+    .signal-text p { font-size: 13px; color: #94a3b8; margin-top: 2px; }
+    .signal-banner.buy .signal-text h3 { color: #34d399; }
+    .signal-banner.sell .signal-text h3 { color: #f87171; }
+    .signal-banner.hold .signal-text h3 { color: #fbbf24; }
+
+    /* Grid */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+
+    /* MA Position */
+    .ma-item {
+      background: #0f1117;
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .ma-label { font-size: 11px; color: #94a3b8; }
+    .ma-value { font-size: 15px; font-weight: 700; }
+    .ma-diff { font-size: 11px; }
+    .above { color: #34d399; }
+    .below { color: #f87171; }
+
+    /* Price Levels */
+    .level-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #2d3148;
+    }
+    .level-row:last-child { border-bottom: none; }
+    .level-label { font-size: 13px; color: #94a3b8; }
+    .level-value { font-size: 15px; font-weight: 700; }
+    .level-value.entry { color: #34d399; }
+    .level-value.stop { color: #f87171; }
+    .level-value.target { color: #60a5fa; }
+    .level-value.resistance { color: #a78bfa; }
+    .level-value.support { color: #fbbf24; }
+
+    /* Trend indicators */
+    .trend-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #1e2130;
+    }
+    .trend-row:last-child { border-bottom: none; }
+    .trend-name { font-size: 13px; color: #94a3b8; }
+    .trend-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 20px;
+    }
+    .badge-bull { background: rgba(52, 211, 153, 0.15); color: #34d399; }
+    .badge-bear { background: rgba(248, 113, 113, 0.15); color: #f87171; }
+    .badge-neutral { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+
+    .section-sub { font-size: 12px; color: #64748b; margin-bottom: 10px; }
+
+    .note {
+      font-size: 11px;
+      color: #64748b;
+      text-align: center;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="page-title">
+  <span>⚡</span> 即時策略計算
+</div>
+
+<!-- Input Section -->
+<div class="card">
+  <div class="card-title">輸入當下股價</div>
+  <div class="input-row">
+    <div class="input-group">
+      <label>股票代號</label>
+      <input class="symbol" type="text" value="2330" placeholder="如 2330" />
+    </div>
+    <div class="input-group">
+      <label>當下價格 (元)</label>
+      <input class="price" type="number" value="965" placeholder="輸入現價" />
+    </div>
+    <button class="btn-calc">計算策略</button>
+  </div>
+  <div class="note">資料來源：歷史指標取自資料庫，當下價格由您手動輸入</div>
+</div>
+
+<!-- Result Section -->
+<div class="card">
+
+  <!-- Stock Info Bar -->
+  <div class="stock-info-bar">
+    <div>
+      <div class="stock-name">台積電</div>
+      <div class="stock-code">2330.TW</div>
+    </div>
+    <div class="price-badge">
+      <div class="price-label">您輸入的現價</div>
+      <div class="price-value">965.00</div>
+      <div class="vs-close up">▲ +5.00 (+0.52%) 較昨收</div>
+    </div>
+  </div>
+
+  <!-- Signal -->
+  <div class="signal-banner buy">
+    <div class="signal-icon">✅</div>
+    <div class="signal-text">
+      <h3>建議買進</h3>
+      <p>股價突破 MA20，站上多頭排列，趨勢向上，可考慮進場</p>
+    </div>
+  </div>
+
+  <!-- MA Position -->
+  <div class="card-title">均線位置</div>
+  <div class="grid-3" style="margin-bottom:16px">
+    <div class="ma-item">
+      <div class="ma-label">MA20</div>
+      <div class="ma-value above">940.0</div>
+      <div class="ma-diff above">▲ 站上 +2.66%</div>
+    </div>
+    <div class="ma-item">
+      <div class="ma-label">MA60</div>
+      <div class="ma-value above">912.0</div>
+      <div class="ma-diff above">▲ 站上 +5.81%</div>
+    </div>
+    <div class="ma-item">
+      <div class="ma-label">MA100</div>
+      <div class="ma-value above">880.0</div>
+      <div class="ma-diff above">▲ 站上 +9.66%</div>
+    </div>
+    <div class="ma-item">
+      <div class="ma-label">MA200</div>
+      <div class="ma-value above">850.0</div>
+      <div class="ma-diff above">▲ 站上 +13.5%</div>
+    </div>
+    <div class="ma-item">
+      <div class="ma-label">5日均量</div>
+      <div class="ma-value" style="color:#60a5fa">38,420</div>
+      <div class="ma-diff above">▲ 量能放大</div>
+    </div>
+    <div class="ma-item">
+      <div class="ma-label">趨勢方向</div>
+      <div class="ma-value" style="color:#34d399">多頭</div>
+      <div class="ma-diff above">MA 多頭排列</div>
+    </div>
+  </div>
+
+  <!-- Price Levels -->
+  <div class="card-title">價格參考區間</div>
+  <div style="margin-bottom:16px">
+    <div class="level-row">
+      <div class="level-label">🟢 建議進場價</div>
+      <div class="level-value entry">960 ~ 970</div>
+    </div>
+    <div class="level-row">
+      <div class="level-label">🔴 止損價（跌破則出場）</div>
+      <div class="level-value stop">935（MA20）</div>
+    </div>
+    <div class="level-row">
+      <div class="level-label">🔵 第一目標價</div>
+      <div class="level-value target">1,000</div>
+    </div>
+    <div class="level-row">
+      <div class="level-label">🔵 第二目標價</div>
+      <div class="level-value target">1,050</div>
+    </div>
+    <div class="level-row">
+      <div class="level-label">🟣 上方壓力</div>
+      <div class="level-value resistance">985 / 1,010</div>
+    </div>
+    <div class="level-row">
+      <div class="level-label">🟡 下方支撐</div>
+      <div class="level-value support">940 / 912</div>
+    </div>
+  </div>
+
+  <!-- Trend Signals -->
+  <div class="card-title">趨勢指標狀態</div>
+  <div>
+    <div class="trend-row">
+      <div class="trend-name">均線排列</div>
+      <div class="trend-badge badge-bull">多頭排列</div>
+    </div>
+    <div class="trend-row">
+      <div class="trend-name">K線突破 MA20</div>
+      <div class="trend-badge badge-bull">已突破</div>
+    </div>
+    <div class="trend-row">
+      <div class="trend-name">K線突破 MA60</div>
+      <div class="trend-badge badge-bull">已突破</div>
+    </div>
+    <div class="trend-row">
+      <div class="trend-name">K線突破 MA100</div>
+      <div class="trend-badge badge-bull">已突破</div>
+    </div>
+    <div class="trend-row">
+      <div class="trend-name">成交量趨勢</div>
+      <div class="trend-badge badge-bull">量增</div>
+    </div>
+    <div class="trend-row">
+      <div class="trend-name">短中期趨勢</div>
+      <div class="trend-badge badge-bull">多頭</div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

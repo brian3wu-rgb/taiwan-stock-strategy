@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { getScanResults, triggerScan, ScanResult, ScanResponse } from '@/lib/api'
+import { getUSScanResults, triggerUSScan, getUSScanStatus, ScanResult, ScanResponse } from '@/lib/api'
 import SignalBadge from '@/components/SignalBadge'
 import ScanProgressBar from '@/components/ScanProgressBar'
 import MiniChart from '@/components/MiniChart'
@@ -23,25 +23,20 @@ function StatCard({ label, value, color }: { label: string; value: number | stri
 }
 
 // ─────────────────────────────────────────────
-//  股票卡片（含迷你圖）
+//  美股股票卡片
 // ─────────────────────────────────────────────
-function StockCard({ stock, rank }: { stock: ScanResult; rank: number }) {
+function USStockCard({ stock, rank }: { stock: ScanResult; rank: number }) {
   const router   = useRouter()
   const volColor = stock.volume_ratio != null
-    ? stock.volume_ratio >= 2 ? 'text-yellow-400'
+    ? stock.volume_ratio >= 2   ? 'text-yellow-400'
     : stock.volume_ratio >= 1.5 ? 'text-green-400'
     : 'text-[#e6edf3]'
     : 'text-[#8b949e]'
 
-  const shortCode = stock.symbol.replace('.TW', '').replace('.TWO', '')
-  const market    = stock.symbol.endsWith('.TWO') ? 'OTC' : 'TSE'
-
-  // 點卡片 → 策略選股頁（模擬交易），market 統一傳 TW（含上櫃）
   function handleCardClick() {
-    router.push(`/simulate?symbol=${shortCode}&market=TW`)
+    router.push(`/simulate?symbol=${stock.symbol}&market=US`)
   }
 
-  // 全圖按鈕只跳 K 線，不觸發卡片 onClick
   function handleChartClick(e: React.MouseEvent) {
     e.stopPropagation()
     router.push(`/chart/${encodeURIComponent(stock.symbol)}?signal=${stock.signal}&date=${stock.scan_date}`)
@@ -52,13 +47,12 @@ function StockCard({ stock, rank }: { stock: ScanResult; rank: number }) {
       className="bg-[#161b22] border border-[#30363d] rounded-xl overflow-hidden flex flex-col hover:border-[#58a6ff]/60 hover:bg-[#1c2128] transition-all cursor-pointer"
       onClick={handleCardClick}
     >
-
       {/* ── 卡片標頭 ── */}
       <div className="px-3 pt-3 pb-2 flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-[10px] text-[#8b949e] shrink-0">#{rank}</span>
-          <span className="font-mono font-bold text-[#58a6ff] text-sm">{shortCode}</span>
-          <span className="text-[10px] text-[#8b949e] shrink-0">{market}</span>
+          <span className="font-mono font-bold text-[#58a6ff] text-sm">{stock.symbol}</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-blue-900/60 text-blue-300 shrink-0">US</span>
           <span className="text-sm font-medium truncate">{stock.name}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -84,10 +78,10 @@ function StockCard({ stock, rank }: { stock: ScanResult; rank: number }) {
         <MiniChart symbol={stock.symbol} height={180} />
       </div>
 
-      {/* ── 卡片底部數據 ── */}
+      {/* ── 底部數據 ── */}
       <div className="px-3 py-2 border-t border-[#21262d] grid grid-cols-4 gap-1 text-center">
         <div>
-          <div className="text-[9px] text-[#8b949e]">收盤</div>
+          <div className="text-[9px] text-[#8b949e]">收盤 USD</div>
           <div className="font-mono text-xs font-semibold">{stock.price.toFixed(2)}</div>
         </div>
         <div>
@@ -113,20 +107,20 @@ function StockCard({ stock, rank }: { stock: ScanResult; rank: number }) {
 }
 
 // ─────────────────────────────────────────────
-//  主頁
+//  美股選股主頁
 // ─────────────────────────────────────────────
-export default function HomePage() {
-  const [data,    setData]    = useState<ScanResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [filter,  setFilter]  = useState<FilterType>('ALL')
-  const [error,   setError]   = useState<string | null>(null)
+export default function USScanPage() {
+  const [data,     setData]     = useState<ScanResponse | null>(null)
+  const [loading,  setLoading]  = useState(true)
+  const [filter,   setFilter]   = useState<FilterType>('ALL')
+  const [error,    setError]    = useState<string | null>(null)
   const [scanning, setScanning] = useState(false)
 
   const load = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
-      const res = await getScanResults()
+      const res = await getUSScanResults()
       setData(res)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '無法連接後端，請確認服務已啟動。')
@@ -140,7 +134,7 @@ export default function HomePage() {
   async function handleScan() {
     try {
       setScanning(true)
-      await triggerScan()
+      await triggerUSScan()
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '觸發掃描失敗')
       setScanning(false)
@@ -164,9 +158,9 @@ export default function HomePage() {
       <header className="bg-[#161b22] border-b border-[#30363d] sticky top-0 z-40">
         <div className="max-w-screen-xl mx-auto px-6 py-3 flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-bold tracking-tight">📈 台股策略選股</h1>
+            <h1 className="text-lg font-bold tracking-tight">🇺🇸 美股策略選股</h1>
             <p className="text-[11px] text-[#8b949e]">
-              均線交叉 × K線反轉 × 量能過濾 · 依交叉接近度排序
+              SOX + Nasdaq-100 · 均線交叉 × K線反轉 × 量能過濾 · 依交叉接近度排序
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -176,10 +170,10 @@ export default function HomePage() {
               </span>
             )}
             <Link
-              href="/scan-us"
+              href="/"
               className="px-3 py-1.5 text-xs bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] rounded-lg transition-colors"
             >
-              🇺🇸 美股選股
+              📈 台股選股
             </Link>
             <Link
               href="/trades"
@@ -258,17 +252,19 @@ export default function HomePage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map((stock, i) => (
-              <StockCard key={stock.symbol} stock={stock} rank={i + 1} />
+              <USStockCard key={stock.symbol} stock={stock} rank={i + 1} />
             ))}
           </div>
         )}
       </main>
 
-      {/* ── 掃描進度監控（含漸進刷新 + 完成通知）── */}
+      {/* ── 掃描進度監控 ── */}
       <ScanProgressBar
         triggered={scanning}
         onDone={handleScanDone}
         onPartialRefresh={load}
+        getStatus={getUSScanStatus}
+        scanLabel="美股掃描已完成"
       />
     </div>
   )

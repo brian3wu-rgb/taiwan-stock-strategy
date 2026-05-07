@@ -29,7 +29,7 @@ from database import (
     init_db, save_scan_results, get_latest_scan_results,
     get_last_scan_date, log_scan,
 )
-from scanner import run_scan_async, get_chart_data
+from scanner import run_scan_async, run_us_scan_async, get_chart_data
 from scheduler import start_scheduler
 from simulation import (
     init_trades_table, get_simulation_data,
@@ -63,6 +63,13 @@ app.add_middleware(
 
 # 全域掃描狀態（單一 worker 實例下安全）
 _scan_status = {
+    "running":  False,
+    "last_run": None,
+    "progress": "尚未執行",
+}
+
+# 美股掃描狀態
+_us_scan_status = {
     "running":  False,
     "last_run": None,
     "progress": "尚未執行",
@@ -189,7 +196,7 @@ async def startup_event():
     logger.info("API ready. DB initialized. Scheduler running.")
 
     # 若今日尚無掃描結果，且已過 15:30（收盤後），才於背景自動補掃
-    last_date = get_last_scan_date()
+    last_date = get_last_scan_date(market="TW")
     today_str = str(date.today())
     now = datetime.now()
     is_weekday = now.weekday() < 5  # 0=Mon, 4=Fri
@@ -223,7 +230,7 @@ async def _background_scan():
             """每批完成後：累積結果並寫入 DB，前端 polling 即可看到最新資料。"""
             if batch_results:
                 accumulated.extend(batch_results)
-                save_scan_results(accumulated, today)
+                save_scan_results(accumulated, today, market="TW")
             _scan_status["progress"] = (
                 f"掃描中 {batch_idx}/{total_batches} 批，已找到 {len(accumulated)} 個訊號..."
             )
@@ -232,7 +239,7 @@ async def _background_scan():
 
         # 最終完整結果（已排序）再存一次，確保排序正確
         if results:
-            save_scan_results(results, today)
+            save_scan_results(results, today, market="TW")
 
         _scan_status["last_run"] = today
         _scan_status["progress"] = f"完成！找到 {len(results)} 個訊號（{today}）"
@@ -258,6 +265,39 @@ async def _background_scan():
         )
     finally:
         _scan_status["running"] = False
+
+
+async def _background_us_scan():
+    """非同步美股背景掃描任務。"""
+    _us_scan_status["running"]  = True
+    _us_scan_status["progress"] = "美股掃描啟動中..."
+    started_at = datetime.now()
+
+    try:
+        today       = str(date.today())
+        accumulated: list = []
+
+        def on_batch(batch_results: list, batch_idx: int, total_batches: int):
+            if batch_results:
+                accumulated.extend(batch_results)
+                save_scan_results(accumulated, today, market="US")
+            _us_scan_status["progress"] = (
+                f"美股掃描中 {batch_idx}/{total_batches} 批，已找到 {len(accumulated)} 個訊號..."
+            )
+
+        results = await run_us_scan_async(on_batch_done=on_batch)
+
+        if results:
+            save_scan_results(results, today, market="US")
+
+        _us_scan_status["last_run"] = today
+        _us_scan_status["progress"] = f"完成！找到 {len(results)} 個訊號（{today}）"
+
+    except Exception as e:
+        _us_scan_status["progress"] = f"錯誤：{e}"
+        logger.error("US background scan failed: %s", e)
+    finally:
+        _us_scan_status["running"] = False
 
 
 # ─────────────────────────────────────────────
@@ -295,8 +335,8 @@ async def get_scan(
     if force and not _scan_status["running"] and background_tasks:
         background_tasks.add_task(_background_scan)
 
-    rows      = get_latest_scan_results()
-    scan_date = get_last_scan_date()
+    rows      = get_latest_scan_results(market="TW")
+    scan_date = get_last_scan_date(market="TW")
 
     results = [ScanResult(**r) for r in rows]
 
@@ -319,8 +359,39 @@ async def trigger_scan(background_tasks: BackgroundTasks):
 
 @app.get("/scan/status", response_model=ScanStatusResponse, tags=["Scan"])
 def get_scan_status():
-    """輪詢掃描進度（前端每 5 秒呼叫一次）。"""
+    """輪詢台股掃描進度（前端每 5 秒呼叫一次）。"""
     return ScanStatusResponse(**_scan_status)
+
+
+# ─────────────────────────────────────────────
+#  美股掃描路由
+# ─────────────────────────────────────────────
+
+@app.get("/scan/us", response_model=ScanResponse, tags=["Scan"])
+async def get_us_scan(signal: Optional[str] = None):
+    """取得最新美股掃描結果（SOX + Nasdaq-100，已依 cross_proximity 升冪排序）。"""
+    rows      = get_latest_scan_results(market="US")
+    scan_date = get_last_scan_date(market="US")
+    results   = [ScanResult(**r) for r in rows]
+    if signal and signal.upper() in ("LONG", "SHORT"):
+        results = [r for r in results if r.signal == signal.upper()]
+    return ScanResponse(results=results, scan_date=scan_date, total=len(results))
+
+
+@app.post("/scan/us/trigger", tags=["Scan"])
+async def trigger_us_scan(background_tasks: BackgroundTasks):
+    """手動觸發美股背景掃描。"""
+    if _us_scan_status["running"]:
+        return {"message": "美股掃描進行中，請稍候", "status": _us_scan_status}
+    background_tasks.add_task(_background_us_scan)
+    _us_scan_status["progress"] = "已排入佇列，即將開始..."
+    return {"message": "美股掃描已啟動", "status": _us_scan_status}
+
+
+@app.get("/scan/us/status", response_model=ScanStatusResponse, tags=["Scan"])
+def get_us_scan_status():
+    """輪詢美股掃描進度。"""
+    return ScanStatusResponse(**_us_scan_status)
 
 
 @app.get("/chart/{symbol:path}", response_model=ChartResponse, tags=["Chart"])

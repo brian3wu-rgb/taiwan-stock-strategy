@@ -96,6 +96,7 @@ def init_db() -> None:
     """)
     _add_column_if_missing(cur, "scan_results", "cross_proximity", "REAL")
     _add_column_if_missing(cur, "scan_results", "volume_ratio",    "REAL")
+    _add_column_if_missing(cur, "scan_results", "market",          "TEXT DEFAULT 'TW'")
 
     # ── 掃描日誌表 ───────────────────────────────
     cur.execute(f"""
@@ -120,27 +121,30 @@ def init_db() -> None:
 #  寫入
 # ─────────────────────────────────────────────
 
-def save_scan_results(results: List[Dict], scan_date: str) -> None:
+def save_scan_results(results: List[Dict], scan_date: str, market: str = "TW") -> None:
     ph   = "%s" if _is_postgres() else "?"
     conn = _connect()
     cur  = conn.cursor()
-    cur.execute(f"DELETE FROM scan_results WHERE scan_date = {ph}", (scan_date,))
+    cur.execute(
+        f"DELETE FROM scan_results WHERE scan_date = {ph} AND market = {ph}",
+        (scan_date, market),
+    )
 
     for r in results:
         cur.execute(f"""
             INSERT INTO scan_results
-              (symbol, name, signal, price, ma5, ma100, cross_proximity, volume_ratio, scan_date)
-            VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph})
+              (symbol, name, signal, price, ma5, ma100, cross_proximity, volume_ratio, scan_date, market)
+            VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph})
         """, (
             r["symbol"], r["name"], r["signal"], r["price"],
             r.get("ma5"), r.get("ma100"),
             r.get("cross_proximity"), r.get("volume_ratio"),
-            scan_date,
+            scan_date, market,
         ))
 
     conn.commit()
     conn.close()
-    logger.info("Saved %d results for %s", len(results), scan_date)
+    logger.info("Saved %d results for %s (%s)", len(results), scan_date, market)
 
 
 def log_scan(started_at, finished_at, total_scanned: int,
@@ -161,21 +165,22 @@ def log_scan(started_at, finished_at, total_scanned: int,
 #  讀取
 # ─────────────────────────────────────────────
 
-def get_latest_scan_results() -> List[Dict]:
+def get_latest_scan_results(market: str = "TW") -> List[Dict]:
+    ph   = "%s" if _is_postgres() else "?"
     conn = _connect()
     cur  = conn.cursor()
-    cur.execute("""
+    cur.execute(f"""
         SELECT symbol, name, signal, price, ma5, ma100,
                cross_proximity, volume_ratio, scan_date
         FROM scan_results
-        WHERE scan_date = (SELECT MAX(scan_date) FROM scan_results)
+        WHERE market = {ph}
+          AND scan_date = (SELECT MAX(scan_date) FROM scan_results WHERE market = {ph})
         ORDER BY cross_proximity ASC, symbol ASC
-    """)
+    """, (market, market))
     if _is_postgres():
         cols = [d.name for d in cur.description]
         rows = [dict(zip(cols, row)) for row in cur.fetchall()]
     else:
-        import sqlite3
         rows_raw = cur.fetchall()
         cols = [d[0] for d in cur.description]
         rows = [dict(zip(cols, r)) for r in rows_raw]
@@ -183,10 +188,11 @@ def get_latest_scan_results() -> List[Dict]:
     return rows
 
 
-def get_last_scan_date() -> Optional[str]:
+def get_last_scan_date(market: str = "TW") -> Optional[str]:
+    ph   = "%s" if _is_postgres() else "?"
     conn = _connect()
     cur  = conn.cursor()
-    cur.execute("SELECT MAX(scan_date) FROM scan_results")
+    cur.execute(f"SELECT MAX(scan_date) FROM scan_results WHERE market = {ph}", (market,))
     result = cur.fetchone()
     conn.close()
     return result[0] if result and result[0] else None

@@ -7,6 +7,8 @@ interface Props {
   triggered?: boolean        // 手動觸發掃描時傳 true（控制按鈕外觀用）
   onDone: () => void         // 掃描完成時通知父元件刷新結果
   onPartialRefresh?: () => void  // 掃描中每 30 秒刷新一次結果
+  getStatus?: () => Promise<ScanStatus>  // 自訂狀態查詢（預設 getScanStatus）
+  scanLabel?: string         // 自訂完成 Toast 標題（預設「每日掃描已完成」）
 }
 
 /**
@@ -15,7 +17,8 @@ interface Props {
  * - 掃描中：顯示進度條 + 每 30 秒觸發結果刷新（漸進顯示）
  * - 掃描完成：顯示完成 Toast 5 秒，通知父元件重新載入
  */
-export default function ScanProgressBar({ triggered, onDone, onPartialRefresh }: Props) {
+export default function ScanProgressBar({ triggered, onDone, onPartialRefresh, getStatus, scanLabel }: Props) {
+  const fetchStatus = getStatus ?? getScanStatus
   const [status, setStatus]         = useState<ScanStatus | null>(null)
   const [wasRunning, setWasRunning] = useState(false)
   const [showToast, setShowToast]   = useState(false)
@@ -25,7 +28,7 @@ export default function ScanProgressBar({ triggered, onDone, onPartialRefresh }:
 
   const poll = useCallback(async () => {
     try {
-      const s = await getScanStatus()
+      const s = await fetchStatus()
       setStatus(s)
 
       if (s.running) {
@@ -54,7 +57,7 @@ export default function ScanProgressBar({ triggered, onDone, onPartialRefresh }:
     } catch {
       // 靜默失敗
     }
-  }, [wasRunning, onDone, onPartialRefresh])
+  }, [wasRunning, onDone, onPartialRefresh, fetchStatus])
 
   useEffect(() => {
     poll()
@@ -98,7 +101,7 @@ export default function ScanProgressBar({ triggered, onDone, onPartialRefresh }:
         >
           <span className="text-2xl leading-none">✅</span>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-green-400 mb-0.5">每日掃描已完成</p>
+            <p className="text-sm font-semibold text-green-400 mb-0.5">{scanLabel ?? '每日掃描已完成'}</p>
             <p className="text-xs text-[#8b949e] truncate">{doneMsg}</p>
             <p className="text-[10px] text-[#484f58] mt-1">結果已更新至頁面</p>
           </div>

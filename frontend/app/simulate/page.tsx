@@ -370,7 +370,8 @@ function SimulatePage() {
   return (
     <div className="min-h-screen bg-[#0d1117] text-[#e6edf3]">
       <nav className="border-b border-[#21262d] px-4 py-3 flex items-center gap-4">
-        <Link href="/" className="text-[#58a6ff] text-sm hover:underline">← 返回選股</Link>
+        <Link href="/" className="text-[#58a6ff] text-sm hover:underline">← 台股選股</Link>
+        <Link href="/scan-us" className="text-[#8b949e] text-sm hover:text-white transition-colors">🇺🇸 美股選股</Link>
         <Link href="/trades"
           className="px-3 py-1 text-xs bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] rounded-lg transition-colors text-[#e6edf3]">
           📋 交易紀錄

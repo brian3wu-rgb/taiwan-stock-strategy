@@ -65,6 +65,106 @@ CHART_HISTORY_DAYS: int = int(os.getenv("CHART_HISTORY_DAYS", "280"))
 
 
 # ─────────────────────────────────────────────
+#  美股清單（SOX + Nasdaq-100 合併去重，共 84 支）
+# ─────────────────────────────────────────────
+
+US_STOCKS: List[Dict] = [
+    # ── Mega Cap ────────────────────────────────────────────────────────
+    {"symbol": "AAPL",  "name": "Apple"},
+    {"symbol": "MSFT",  "name": "Microsoft"},
+    {"symbol": "NVDA",  "name": "NVIDIA"},
+    {"symbol": "AMZN",  "name": "Amazon"},
+    {"symbol": "META",  "name": "Meta"},
+    {"symbol": "GOOG",  "name": "Alphabet"},
+    {"symbol": "TSLA",  "name": "Tesla"},
+    {"symbol": "AVGO",  "name": "Broadcom"},
+    {"symbol": "COST",  "name": "Costco"},
+    # ── Semiconductor（SOX ∩ Nasdaq-100）────────────────────────────────
+    {"symbol": "AMD",   "name": "AMD"},
+    {"symbol": "QCOM",  "name": "Qualcomm"},
+    {"symbol": "TXN",   "name": "Texas Instruments"},
+    {"symbol": "MU",    "name": "Micron Technology"},
+    {"symbol": "AMAT",  "name": "Applied Materials"},
+    {"symbol": "LRCX",  "name": "Lam Research"},
+    {"symbol": "KLAC",  "name": "KLA Corp"},
+    {"symbol": "ADI",   "name": "Analog Devices"},
+    {"symbol": "MCHP",  "name": "Microchip Technology"},
+    {"symbol": "ON",    "name": "ON Semiconductor"},
+    {"symbol": "MPWR",  "name": "Monolithic Power"},
+    {"symbol": "MRVL",  "name": "Marvell Technology"},
+    {"symbol": "INTC",  "name": "Intel"},
+    {"symbol": "ASML",  "name": "ASML Holding"},
+    {"symbol": "ARM",   "name": "Arm Holdings"},
+    {"symbol": "NXPI",  "name": "NXP Semiconductors"},
+    {"symbol": "GFS",   "name": "GlobalFoundries"},
+    # ── SOX Only（非 Nasdaq-100 成份）───────────────────────────────────
+    {"symbol": "SWKS",  "name": "Skyworks Solutions"},
+    {"symbol": "QRVO",  "name": "Qorvo"},
+    {"symbol": "ENTG",  "name": "Entegris"},
+    {"symbol": "TSM",   "name": "TSMC ADR"},
+    {"symbol": "STM",   "name": "STMicroelectronics"},
+    {"symbol": "CRUS",  "name": "Cirrus Logic"},
+    {"symbol": "ACLS",  "name": "Axcelis Technologies"},
+    {"symbol": "COHU",  "name": "Cohu"},
+    {"symbol": "MKSI",  "name": "MKS Instruments"},
+    {"symbol": "POWI",  "name": "Power Integrations"},
+    # ── Software / Cloud / Cybersecurity ────────────────────────────────
+    {"symbol": "ADBE",  "name": "Adobe"},
+    {"symbol": "CSCO",  "name": "Cisco"},
+    {"symbol": "SNPS",  "name": "Synopsys"},
+    {"symbol": "CDNS",  "name": "Cadence Design"},
+    {"symbol": "PANW",  "name": "Palo Alto Networks"},
+    {"symbol": "FTNT",  "name": "Fortinet"},
+    {"symbol": "CRWD",  "name": "CrowdStrike"},
+    {"symbol": "TEAM",  "name": "Atlassian"},
+    {"symbol": "WDAY",  "name": "Workday"},
+    {"symbol": "ZS",    "name": "Zscaler"},
+    # ── Consumer / Retail / E-Commerce ──────────────────────────────────
+    {"symbol": "NFLX",  "name": "Netflix"},
+    {"symbol": "MELI",  "name": "MercadoLibre"},
+    {"symbol": "PDD",   "name": "PDD Holdings"},
+    {"symbol": "ABNB",  "name": "Airbnb"},
+    {"symbol": "EBAY",  "name": "eBay"},
+    {"symbol": "PYPL",  "name": "PayPal"},
+    {"symbol": "ORLY",  "name": "O'Reilly Automotive"},
+    {"symbol": "ROST",  "name": "Ross Stores"},
+    {"symbol": "DLTR",  "name": "Dollar Tree"},
+    {"symbol": "MNST",  "name": "Monster Beverage"},
+    {"symbol": "SBUX",  "name": "Starbucks"},
+    {"symbol": "LULU",  "name": "Lululemon"},
+    # ── Biotech / Healthcare ─────────────────────────────────────────────
+    {"symbol": "AMGN",  "name": "Amgen"},
+    {"symbol": "BKNG",  "name": "Booking Holdings"},
+    {"symbol": "ISRG",  "name": "Intuitive Surgical"},
+    {"symbol": "REGN",  "name": "Regeneron"},
+    {"symbol": "BIIB",  "name": "Biogen"},
+    {"symbol": "ILMN",  "name": "Illumina"},
+    {"symbol": "MRNA",  "name": "Moderna"},
+    {"symbol": "DXCM",  "name": "DexCom"},
+    {"symbol": "IDXX",  "name": "IDEXX Laboratories"},
+    {"symbol": "GEHC",  "name": "GE HealthCare"},
+    {"symbol": "ALGN",  "name": "Align Technology"},
+    # ── Industrials / Energy / Utilities ────────────────────────────────
+    {"symbol": "PCAR",  "name": "PACCAR"},
+    {"symbol": "PAYX",  "name": "Paychex"},
+    {"symbol": "FAST",  "name": "Fastenal"},
+    {"symbol": "ODFL",  "name": "Old Dominion Freight"},
+    {"symbol": "VRSK",  "name": "Verisk Analytics"},
+    {"symbol": "CTSH",  "name": "Cognizant"},
+    {"symbol": "ANSS",  "name": "ANSYS"},
+    {"symbol": "MDLZ",  "name": "Mondelez"},
+    {"symbol": "KDP",   "name": "Keurig Dr Pepper"},
+    {"symbol": "EXC",   "name": "Exelon"},
+    {"symbol": "XEL",   "name": "Xcel Energy"},
+    {"symbol": "CEG",   "name": "Constellation Energy"},
+    {"symbol": "ENPH",  "name": "Enphase Energy"},
+    # ── Gaming ───────────────────────────────────────────────────────────
+    {"symbol": "EA",    "name": "Electronic Arts"},
+    {"symbol": "TTWO",  "name": "Take-Two Interactive"},
+]
+
+
+# ─────────────────────────────────────────────
 #  熱門股備援清單
 # ─────────────────────────────────────────────
 
@@ -551,6 +651,138 @@ def run_scan(stock_list: Optional[List[Dict]] = None) -> List[Dict]:
     內部建立新的 event loop 執行非同步掃描。
     """
     return asyncio.run(run_scan_async(stock_list))
+
+
+# ─────────────────────────────────────────────
+#  美股批次處理（yfinance only，無 TWSE fallback）
+# ─────────────────────────────────────────────
+
+def _download_us_batch_sync(symbols: List[str]) -> Dict[str, pd.DataFrame]:
+    """yfinance 批次下載美股，不需 TWSE fallback。"""
+    if not symbols:
+        return {}
+
+    result: Dict[str, pd.DataFrame] = {}
+    today  = date.today()
+    start  = today - timedelta(days=HISTORY_DAYS + 90)
+    end    = today + timedelta(days=1)
+
+    try:
+        raw = yf.download(
+            symbols,
+            start=start.isoformat(),
+            end=end.isoformat(),
+            auto_adjust=True,
+            progress=False,
+            group_by="ticker",
+        )
+        if raw is None or raw.empty:
+            return {}
+
+        if len(symbols) == 1:
+            sym = symbols[0]
+            df  = raw.copy()
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(0)
+            df.index = pd.to_datetime(df.index)
+            df = df.dropna(subset=["Close"])
+            if len(df) >= 105:
+                result[sym] = df
+        else:
+            for sym in symbols:
+                try:
+                    df = raw[sym].copy()
+                    df.index = pd.to_datetime(df.index)
+                    df = df.dropna(subset=["Close"])
+                    if len(df) >= 105:
+                        result[sym] = df
+                except (KeyError, Exception):
+                    pass
+
+    except Exception as e:
+        logger.warning("US batch yfinance error: %s", e)
+
+    return result
+
+
+def _process_us_batch(batch_symbols: List[str], name_map: Dict[str, str]) -> List[Dict]:
+    """[同步，在執行緒池中執行] 美股批次下載 + 分析。"""
+    batch_data = _download_us_batch_sync(batch_symbols)
+    results: List[Dict] = []
+    for sym in batch_symbols:
+        if sym in batch_data:
+            r = _analyze_stock(sym, name_map[sym], batch_data[sym])
+            if r:
+                results.append(r)
+                logger.info("  ✅ US %s (%s) → %s  proximity=%.4f",
+                            sym, r["name"], r["signal"], r["cross_proximity"])
+    time.sleep(0.5)   # 短暫停頓，避免 rate limit
+    return results
+
+
+# ─────────────────────────────────────────────
+#  美股非同步掃描主流程
+# ─────────────────────────────────────────────
+
+US_BATCH_SIZE = 15   # 美股每批 15 支（yfinance 對美股更穩定，可稍大）
+
+async def run_us_scan_async(
+    on_batch_done: Optional[callable] = None,
+) -> List[Dict]:
+    """
+    [非同步] 美股掃描主流程。
+    使用 US_STOCKS 清單（SOX + Nasdaq-100，~84 支），yfinance 直接下載。
+    """
+    name_map    = {s["symbol"]: s["name"] for s in US_STOCKS}
+    symbols     = list(name_map.keys())
+    total       = len(symbols)
+
+    batches     = [symbols[i : i + US_BATCH_SIZE] for i in range(0, total, US_BATCH_SIZE)]
+    num_batches = len(batches)
+    logger.info("US Scan started: %d stocks → %d batches × %d workers",
+                total, num_batches, MAX_WORKERS)
+
+    semaphore = asyncio.Semaphore(MAX_WORKERS)
+    loop      = asyncio.get_event_loop()
+    executor  = ThreadPoolExecutor(max_workers=MAX_WORKERS, thread_name_prefix="us-scanner")
+
+    async def run_batch(batch: List[str], idx: int) -> List[Dict]:
+        async with semaphore:
+            await asyncio.sleep(idx * 0.5 % 2.0)
+            logger.info("US Batch %d/%d: %s→%s", idx + 1, num_batches, batch[0], batch[-1])
+            try:
+                result = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        executor,
+                        partial(_process_us_batch, batch, name_map),
+                    ),
+                    timeout=120.0,   # 美股批次小，2 分鐘已足夠
+                )
+            except asyncio.TimeoutError:
+                logger.warning("US Batch %d timed out, skipping", idx + 1)
+                result = []
+            except Exception as exc:
+                logger.error("US Batch %d error: %s", idx + 1, exc)
+                result = []
+            logger.info("US Batch %d/%d done: %d signals", idx + 1, num_batches, len(result))
+            if on_batch_done is not None:
+                on_batch_done(result, idx + 1, num_batches)
+            return result
+
+    tasks         = [run_batch(b, i) for i, b in enumerate(batches)]
+    batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+    executor.shutdown(wait=False)
+
+    all_results: List[Dict] = []
+    for br in batch_results:
+        if isinstance(br, list):
+            all_results.extend(br)
+        elif isinstance(br, Exception):
+            logger.error("US Batch exception: %s", br)
+
+    all_results.sort(key=lambda r: r["cross_proximity"])
+    logger.info("US Scan complete: %d signals from %d stocks", len(all_results), total)
+    return all_results
 
 
 # ─────────────────────────────────────────────

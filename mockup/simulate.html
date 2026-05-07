@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>模擬交易 — 台股策略選股</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 13px; }
+
+    /* ── Header ── */
+    .header { display: flex; align-items: center; gap: 16px; padding: 14px 24px; background: #161b22; border-bottom: 1px solid #30363d; }
+    .header .back { color: #58a6ff; text-decoration: none; font-size: 13px; }
+    .header .back:hover { text-decoration: underline; }
+    .header h1 { font-size: 18px; font-weight: 600; }
+    .header .badge { padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+    .badge-tw { background: #1f6feb33; color: #58a6ff; border: 1px solid #1f6feb; }
+    .badge-us { background: #388bfd33; color: #79c0ff; border: 1px solid #388bfd; }
+    .rate-tag { margin-left: auto; color: #8b949e; font-size: 12px; }
+    .rate-tag span { color: #f0883e; font-weight: 600; }
+
+    /* ── Market Toggle ── */
+    .market-bar { display: flex; align-items: center; gap: 8px; padding: 12px 24px; background: #161b22; border-bottom: 1px solid #30363d; }
+    .market-bar label { color: #8b949e; font-size: 12px; }
+    .toggle-group { display: flex; border: 1px solid #30363d; border-radius: 6px; overflow: hidden; }
+    .toggle-btn { padding: 5px 16px; background: transparent; color: #8b949e; border: none; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.15s; }
+    .toggle-btn.active { background: #1f6feb; color: #fff; }
+    .symbol-input { padding: 5px 10px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #e6edf3; font-size: 13px; width: 120px; }
+    .symbol-input:focus { outline: none; border-color: #58a6ff; }
+    .go-btn { padding: 5px 14px; background: #238636; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
+    .go-btn:hover { background: #2ea043; }
+
+    /* ── Main layout ── */
+    .main { display: grid; grid-template-columns: 1fr 320px; gap: 16px; padding: 16px 24px; }
+    @media (max-width: 1100px) { .main { grid-template-columns: 1fr; } }
+
+    /* ── Table ── */
+    .table-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid #30363d; }
+    table { width: 100%; border-collapse: collapse; min-width: 1100px; }
+    thead tr { background: #161b22; }
+    thead th { padding: 8px 10px; text-align: center; font-size: 11px; color: #8b949e; font-weight: 600; white-space: nowrap; border-bottom: 1px solid #30363d; }
+    thead th.section-auto { color: #3fb950; }
+    thead th.section-manual { color: #f0883e; }
+    tbody tr { border-bottom: 1px solid #21262d; transition: background 0.1s; }
+    tbody tr:hover { background: #161b22; }
+    tbody tr:last-child { border-bottom: none; }
+    td { padding: 6px 10px; text-align: center; white-space: nowrap; }
+    td.date { color: #8b949e; text-align: left; padding-left: 12px; }
+    td.num { font-variant-numeric: tabular-nums; }
+    td.green { color: #3fb950; }
+    td.red { color: #f85149; }
+    td.blue { color: #58a6ff; }
+    td.orange { color: #f0883e; }
+    td.muted { color: #6e7681; }
+    .divider-col { border-left: 2px solid #30363d; }
+
+    /* Signal badges */
+    .sig { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 600; white-space: nowrap; }
+    .sig-long    { background: #3d1a1a; color: #f85149; border: 1px solid #da3633; }   /* 做多 → 台灣紅 */
+    .sig-short   { background: #1a3a1a; color: #3fb950; border: 1px solid #238636; }   /* 做空 → 台灣綠 */
+    .sig-exit    { background: #3d2f00; color: #f0883e; border: 1px solid #d29922; }
+    .sig-wait    { background: #1c2128; color: #8b949e; border: 1px solid #30363d; }
+    .sig-bull    { background: #3d1a1a; color: #f85149; }   /* 多頭趨勢 → 紅 */
+    .sig-bear    { background: #1a3a1a; color: #3fb950; }   /* 空頭趨勢 → 綠 */
+    .hold-long   { color: #f85149; font-weight: 600; }      /* 多單 → 紅 */
+    .hold-short  { color: #3fb950; font-weight: 600; }      /* 空單 → 綠 */
+    .hold-empty  { color: #6e7681; }
+
+    /* ── Right sidebar ── */
+    .sidebar { display: flex; flex-direction: column; gap: 14px; }
+
+    /* Compare Card */
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; }
+    .card h3 { font-size: 13px; font-weight: 600; color: #e6edf3; margin-bottom: 12px; }
+    .compare-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0; }
+    .compare-grid .label { font-size: 11px; color: #8b949e; padding: 5px 0; border-bottom: 1px solid #21262d; }
+    .compare-grid .val-auto { font-size: 11px; color: #3fb950; padding: 5px 6px; border-bottom: 1px solid #21262d; text-align: right; font-weight: 600; }
+    .compare-grid .val-manual { font-size: 11px; color: #f0883e; padding: 5px 6px; border-bottom: 1px solid #21262d; text-align: right; font-weight: 600; }
+    .compare-grid .col-head { font-size: 10px; font-weight: 700; padding: 4px 6px; text-align: center; border-bottom: 2px solid #30363d; }
+    .col-auto { color: #3fb950; }
+    .col-manual { color: #f0883e; }
+    .pnl-pos { color: #f85149 !important; font-size: 16px; font-weight: 700; }   /* 正損益 → 台灣紅 */
+    .pnl-neg { color: #3fb950 !important; font-size: 16px; font-weight: 700; }   /* 負損益 → 台灣綠 */
+
+    /* Trade Form */
+    .form-group { margin-bottom: 10px; }
+    .form-group label { display: block; font-size: 11px; color: #8b949e; margin-bottom: 4px; }
+    .form-group input, .form-group select {
+      width: 100%; padding: 6px 10px; background: #0d1117;
+      border: 1px solid #30363d; border-radius: 6px; color: #e6edf3;
+      font-size: 12px;
+    }
+    .form-group input:focus, .form-group select:focus { outline: none; border-color: #58a6ff; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .cost-display { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 6px 10px; font-size: 13px; font-weight: 600; color: #f0883e; }
+    .submit-btn { width: 100%; padding: 8px; background: #1f6feb; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; margin-top: 4px; }
+    .submit-btn:hover { background: #388bfd; }
+    .divider { border: none; border-top: 1px solid #30363d; margin: 12px 0; }
+
+    /* Trade History */
+    .history-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+    .history-item { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 8px 10px; }
+    .history-item .hi-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+    .history-item .hi-sym { font-size: 12px; font-weight: 600; color: #e6edf3; }
+    .history-item .hi-date { font-size: 10px; color: #8b949e; }
+    .history-item .hi-bottom { display: flex; justify-content: space-between; font-size: 11px; color: #8b949e; }
+    .hi-pnl-pos { color: #f85149; font-weight: 600; }   /* 正損益 → 台灣紅 */
+    .hi-pnl-neg { color: #3fb950; font-weight: 600; }   /* 負損益 → 台灣綠 */
+
+    /* Section headers above table */
+    .section-header { display: flex; gap: 20px; padding: 8px 0 4px 0; font-size: 11px; font-weight: 600; }
+    .sh-auto { color: #3fb950; }
+    .sh-manual { color: #f0883e; }
+
+    /* Responsive scroll note */
+    .scroll-note { font-size: 10px; color: #6e7681; padding: 4px 0 6px 0; }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <a class="back" href="#">← 返回選股</a>
+  <h1>2330</h1>
+  <span class="badge badge-tw">台股</span>
+  <span style="color:#8b949e; font-size:13px;">台灣積體電路</span>
+  <div class="rate-tag">USD/TWD：<span>32.15</span></div>
+</div>
+
+<!-- Market / Symbol bar -->
+<div class="market-bar">
+  <label>市場：</label>
+  <div class="toggle-group">
+    <button class="toggle-btn active" onclick="setMarket('TW',this)">🇹🇼 台股</button>
+    <button class="toggle-btn" onclick="setMarket('US',this)">🇺🇸 美股</button>
+  </div>
+  <input class="symbol-input" id="symbolInput" value="2330" placeholder="輸入代碼" />
+  <button class="go-btn" onclick="goSimulate()">查詢</button>
+</div>
+
+<!-- Main -->
+<div class="main">
+
+  <!-- Left: Table -->
+  <div>
+    <p class="scroll-note">← 左右滑動查看完整欄位</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <!-- Base -->
+            <th rowspan="2" style="text-align:left; padding-left:12px;">日期</th>
+            <th rowspan="2">開盤</th>
+            <th rowspan="2">收盤</th>
+            <th rowspan="2">MA5</th>
+            <th rowspan="2">MA100</th>
+            <th rowspan="2">K值</th>
+            <th rowspan="2">K狀態</th>
+            <th rowspan="2">走勢</th>
+            <th rowspan="2">PPP</th>
+            <th rowspan="2">短期訊號</th>
+            <!-- Auto -->
+            <th colspan="3" class="section-auto divider-col">🤖 自動策略</th>
+            <!-- Manual -->
+            <th colspan="3" class="section-manual divider-col">👤 我的操作</th>
+          </tr>
+          <tr>
+            <th class="section-auto divider-col">持倉</th>
+            <th class="section-auto">進場價</th>
+            <th class="section-auto">損益(TWD)</th>
+            <th class="section-manual divider-col">持倉</th>
+            <th class="section-manual">進場價</th>
+            <th class="section-manual">損益(TWD)</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <!-- Rows will be filled by JS -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Right: Sidebar -->
+  <div class="sidebar">
+
+    <!-- Compare Card -->
+    <div class="card">
+      <h3>📊 策略績效比較</h3>
+      <div class="compare-grid">
+        <div class="label col-head">項目</div>
+        <div class="col-head col-auto">🤖 自動</div>
+        <div class="col-head col-manual">👤 我的</div>
+
+        <div class="label">進場時間</div>
+        <div class="val-auto">04/08</div>
+        <div class="val-manual">04/10</div>
+
+        <div class="label">進場價格</div>
+        <div class="val-auto">$855</div>
+        <div class="val-manual">$880</div>
+
+        <div class="label">進場股數</div>
+        <div class="val-auto">—</div>
+        <div class="val-manual">1,000</div>
+
+        <div class="label">進場成本</div>
+        <div class="val-auto">—</div>
+        <div class="val-manual">NT$880,000</div>
+
+        <div class="label">持有狀態</div>
+        <div class="val-auto">多單</div>
+        <div class="val-manual">多單</div>
+
+        <div class="label">當前損益</div>
+        <div class="val-auto pnl-pos">+NT$28,000</div>
+        <div class="val-manual pnl-neg">-NT$7,000</div>
+
+        <div class="label">報酬率</div>
+        <div class="val-auto" style="color:#f85149">+3.27%</div>
+        <div class="val-manual" style="color:#3fb950">-0.80%</div>
+      </div>
+    </div>
+
+    <!-- Trade Form -->
+    <div class="card">
+      <h3>✏️ 新增我的交易記錄</h3>
+      <div class="form-group">
+        <label>股票標的</label>
+        <input type="text" value="2330" placeholder="例：2330 / NVDA" />
+      </div>
+      <div class="form-group">
+        <label>市場</label>
+        <select>
+          <option value="TW">🇹🇼 台股</option>
+          <option value="US">🇺🇸 美股</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>進場日期</label>
+        <input type="date" value="2026-04-10" />
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>進場價格</label>
+          <input type="number" value="880" placeholder="0.00" oninput="calcCost()" id="fp" />
+        </div>
+        <div class="form-group">
+          <label>進場股數</label>
+          <input type="number" value="1000" placeholder="0" oninput="calcCost()" id="fs" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>進場成本（自動計算）</label>
+        <div class="cost-display" id="costDisplay">NT$ 880,000</div>
+      </div>
+      <button class="submit-btn">確認送出</button>
+    </div>
+
+    <!-- Trade History -->
+    <div class="card">
+      <h3>📋 已儲存的交易</h3>
+      <div class="history-list">
+        <div class="history-item">
+          <div class="hi-top">
+            <span class="hi-sym">2330 <span style="color:#f85149; font-size:10px;">多單</span></span>
+            <span class="hi-date">進場 2026-04-10</span>
+          </div>
+          <div class="hi-bottom">
+            <span>880 × 1,000股 = NT$880,000</span>
+            <span class="hi-pnl-neg">-NT$7,000</span>
+          </div>
+        </div>
+        <div class="history-item">
+          <div class="hi-top">
+            <span class="hi-sym">NVDA <span style="color:#3fb950; font-size:10px;">空單</span></span>
+            <span class="hi-date">進場 2026-03-20</span>
+          </div>
+          <div class="hi-bottom">
+            <span>$125 × 50股 ≈ NT$201,000</span>
+            <span class="hi-pnl-pos">+NT$14,300</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── Mock Data ──
+const mockRows = [
+  { date:'04/07', open:850, close:855, ma5:848, ma100:820, k:72.3, kState:'🔴超買', trend:'🔴多頭趨勢', ppp:'⚾做多：強勢PPP', sig:'⚾做多：下半身(紅K過5MA)', autoHold:'多單', autoEntry:855, autoPnl:0, myHold:'空手', myEntry:0, myPnl:0 },
+  { date:'04/08', open:855, close:862, ma5:851, ma100:821, k:74.1, kState:'🔴超買', trend:'🔴多頭趨勢', ppp:'⚾做多：強勢PPP', sig:'⚾做多：下半身(紅K過5MA)', autoHold:'多單', autoEntry:855, autoPnl:7000, myHold:'空手', myEntry:0, myPnl:0 },
+  { date:'04/09', open:862, close:858, ma5:853, ma100:822, k:70.5, kState:'📈轉強', trend:'🔴多頭趨勢', ppp:'⚾做多：強勢PPP', sig:'⌛等待好球 (K線未達標)', autoHold:'多單', autoEntry:855, autoPnl:3000, myHold:'空手', myEntry:0, myPnl:0 },
+  { date:'04/10', open:858, close:873, ma5:857, ma100:823, k:75.2, kState:'🔴超買', trend:'🔴多頭趨勢', ppp:'⚾做多：強勢PPP', sig:'⚾做多：下半身(紅K過5MA)', autoHold:'多單', autoEntry:855, autoPnl:18000, myHold:'多單', myEntry:880, myPnl:-7000 },
+  { date:'04/11', open:873, close:867, ma5:860, ma100:824, k:68.3, kState:'📈轉強', trend:'🔴多頭趨勢', ppp:'✋多單平倉：反下半身出現', sig:'✋多單撤退：反下半身出現', autoHold:'空手', autoEntry:0, autoPnl:12000, myHold:'多單', myEntry:880, myPnl:-13000 },
+  { date:'04/14', open:867, close:852, ma5:858, ma100:825, k:55.1, kState:'📉轉弱', trend:'🔴多頭趨勢', ppp:'⌛觀望/整理中', sig:'🛑趨勢不明：出清所有部位', autoHold:'空手', autoEntry:0, autoPnl:0, myHold:'多單', myEntry:880, myPnl:-28000 },
+  { date:'04/15', open:852, close:848, ma5:854, ma100:826, k:45.8, kState:'📉轉弱', trend:'🟢空頭趨勢', ppp:'🥎做空：跌勢PPP+反下半身', sig:'2做空：反下半身(黑K破5MA)', autoHold:'空單', autoEntry:848, autoPnl:0, myHold:'多單', myEntry:880, myPnl:-32000 },
+  { date:'04/16', open:848, close:860, ma5:852, ma100:827, k:58.4, kState:'📈轉強', trend:'🟢空頭趨勢', ppp:'🥎做空：跌勢PPP+反下半身', sig:'✋空單回補：下半身出現', autoHold:'空手', autoEntry:0, autoPnl:-12000, myHold:'多單', myEntry:880, myPnl:-20000 },
+  { date:'04/17', open:860, close:868, ma5:855, ma100:828, k:62.1, kState:'📈轉強', trend:'🔴多頭趨勢', ppp:'⚾做多：強勢PPP', sig:'⚾做多：下半身(紅K過5MA)', autoHold:'多單', autoEntry:860, autoPnl:8000, myHold:'多單', myEntry:880, myPnl:-12000 },
+  { date:'04/18', open:868, close:873, ma5:858, ma100:829, k:65.3, kState:'📈轉強', trend:'🔴多頭趨勢', ppp:'⚾做多：強勢PPP', sig:'⚾做多：下半身(紅K過5MA)', autoHold:'多單', autoEntry:860, autoPnl:13000, myHold:'多單', myEntry:880, myPnl:-7000 },
+];
+
+function sigClass(s) {
+  if (!s) return 'sig-wait';
+  const c = s[0];
+  if (c === '⚾') return 'sig-long';
+  if (c === '🥎' || s.includes('做空')) return 'sig-short';
+  if (c === '✋' || c === '🛑') return 'sig-exit';
+  return 'sig-wait';
+}
+function pnlClass(v) { return v > 0 ? 'red' : v < 0 ? 'green' : 'muted'; }  // 台灣慣例：正=紅，負=綠
+function fmtPnl(v) {
+  if (v === 0) return '—';
+  return (v > 0 ? '+' : '') + 'NT$' + v.toLocaleString();
+}
+function holdClass(h) {
+  if (h === '多單') return 'hold-long';
+  if (h === '空單') return 'hold-short';
+  return 'hold-empty';
+}
+
+function renderTable() {
+  const tb = document.getElementById('tableBody');
+  tb.innerHTML = mockRows.map(r => `
+    <tr>
+      <td class="date">${r.date}</td>
+      <td class="num">${r.open}</td>
+      <td class="num ${r.close >= r.open ? 'red' : 'green'}">${r.close}</td>
+      <td class="num blue">${r.ma5}</td>
+      <td class="num orange">${r.ma100}</td>
+      <td class="num">${r.k.toFixed(1)}</td>
+      <td><span class="sig ${sigClass(r.kState)}">${r.kState}</span></td>
+      <td><span class="sig ${r.trend.includes('多') ? 'sig-bull' : 'sig-bear'}">${r.trend}</span></td>
+      <td style="max-width:160px; white-space:normal; text-align:left; font-size:11px;">${r.ppp}</td>
+      <td style="max-width:180px; white-space:normal; text-align:left; font-size:11px;"><span class="sig ${sigClass(r.sig)}">${r.sig}</span></td>
+      <!-- Auto -->
+      <td class="divider-col ${holdClass(r.autoHold)}">${r.autoHold}</td>
+      <td class="num">${r.autoEntry || '—'}</td>
+      <td class="num ${pnlClass(r.autoPnl)}">${fmtPnl(r.autoPnl)}</td>
+      <!-- Manual -->
+      <td class="divider-col ${holdClass(r.myHold)}">${r.myHold}</td>
+      <td class="num">${r.myEntry || '—'}</td>
+      <td class="num ${pnlClass(r.myPnl)}">${fmtPnl(r.myPnl)}</td>
+    </tr>
+  `).join('');
+}
+
+function calcCost() {
+  const p = parseFloat(document.getElementById('fp').value) || 0;
+  const s = parseFloat(document.getElementById('fs').value) || 0;
+  const cost = p * s;
+  document.getElementById('costDisplay').textContent = 'NT$ ' + cost.toLocaleString();
+}
+
+function setMarket(m, btn) {
+  document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function goSimulate() {
+  const sym = document.getElementById('symbolInput').value.trim().toUpperCase();
+  if (sym) alert('查詢：' + sym + '\n（實際串接後端後會跳轉頁面）');
+}
+
+renderTable();
+</script>
+</body>
+</html>
