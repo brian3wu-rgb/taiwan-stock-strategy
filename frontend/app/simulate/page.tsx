@@ -560,12 +560,13 @@ function SimulatePage() {
               策略指標表（{rangeStart && rangeEnd ? `${rangeStart} ～ ${rangeEnd}，共 ${data!.rows.length} 個交易日` : `近 ${data!.rows.length} 個交易日`}）
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-xs border-collapse min-w-[1100px]">
+              <table className="w-full text-xs border-collapse min-w-[1200px]">
                 <thead>
                   <tr className="bg-[#0d1117] text-[#8b949e] text-left">
                     <th className="px-3 py-2 whitespace-nowrap">日期</th>
                     <th className="px-3 py-2 text-right">開盤</th>
                     <th className="px-3 py-2 text-right">收盤</th>
+                    <th className="px-3 py-2 text-right whitespace-nowrap">漲跌</th>
                     <th className="px-3 py-2 text-right text-blue-400">MA5</th>
                     <th className="px-3 py-2 text-right text-orange-400">MA100</th>
                     <th className="px-3 py-2">K趨勢</th>
@@ -583,18 +584,32 @@ function SimulatePage() {
                 </thead>
                 <tbody>
                   {data!.rows.map((row, i) => {
-                    const myState = computeMyState(row)
-                    const isBull  = row.trend.includes('多')
-                    const autoPnl = scaledPnl(row.auto_pnl_twd)
+                    const myState    = computeMyState(row)
+                    const isBull     = row.trend.includes('多')
+                    const autoPnl    = scaledPnl(row.auto_pnl_twd)
                     const myHoldColor = myState.isExitDay
                       ? 'text-amber-400 font-semibold'
                       : holdColor(myState.hold)
+                    // 漲跌（vs 前一日收盤；第一行無前日）
+                    const prevClose  = i > 0 ? data!.rows[i - 1].close : null
+                    const chg        = prevClose != null ? row.close - prevClose : null
+                    const chgPct     = prevClose != null && prevClose !== 0 ? chg! / prevClose * 100 : null
+                    const chgUp      = chg != null ? chg >= 0 : null
+                    const chgColor   = chgUp === true ? 'text-red-400' : chgUp === false ? 'text-green-400' : 'text-[#8b949e]'
                     return (
                       <tr key={row.date}
                         className={`border-b border-[#21262d] hover:bg-[#1c2128] ${i === data!.rows.length - 1 ? 'font-semibold' : ''} ${myState.isExitDay ? 'bg-amber-950/10' : ''}`}>
                         <td className="px-3 py-2 font-mono whitespace-nowrap text-[#8b949e]">{row.date}</td>
                         <td className="px-3 py-2 text-right font-mono">{fmtPrice(row.open, isUS)}</td>
                         <td className={`px-3 py-2 text-right font-mono ${row.close >= row.open ? 'text-red-400' : 'text-green-400'}`}>{fmtPrice(row.close, isUS)}</td>
+                        <td className={`px-3 py-2 text-right font-mono whitespace-nowrap ${chgColor}`}>
+                          {chg != null ? (
+                            <span>
+                              {chgUp ? '▲' : '▼'} {chg >= 0 ? '+' : ''}{isUS ? chg.toFixed(2) : chg.toFixed(2)}<br />
+                              <span className="text-[10px] opacity-80">({chgPct! >= 0 ? '+' : ''}{chgPct!.toFixed(2)}%)</span>
+                            </span>
+                          ) : '—'}
+                        </td>
                         <td className="px-3 py-2 text-right font-mono text-blue-400">{row.ma5 ? fmtPrice(row.ma5, isUS) : '—'}</td>
                         <td className="px-3 py-2 text-right font-mono text-orange-400">{row.ma100 ? fmtPrice(row.ma100, isUS) : '—'}</td>
                         <td className="px-3 py-2"><KTrendCell state={row.k_state} k={row.k} /></td>

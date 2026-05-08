@@ -504,6 +504,15 @@ def _analyze_stock(symbol: str, name: str, df: pd.DataFrame) -> Optional[Dict]:
         if ma5 is None or ma100 is None:
             return None
 
+        # ── 漲跌計算 ──────────────────────────────────────────────────
+        if len(df) >= 2:
+            prev_close = float(df["Close"].iloc[-2])
+            change     = round(price - prev_close, 2)
+            change_pct = round(change / prev_close * 100, 2) if prev_close != 0 else 0.0
+        else:
+            change     = 0.0
+            change_pct = 0.0
+
         proximity = compute_cross_proximity(ma5, ma100)
 
         signal: Optional[str] = None
@@ -524,6 +533,8 @@ def _analyze_stock(symbol: str, name: str, df: pd.DataFrame) -> Optional[Dict]:
             "ma100":           round(ma100,     2),
             "cross_proximity": round(proximity, 6),
             "volume_ratio":    vol_ratio,
+            "change":          change,
+            "change_pct":      change_pct,
             "date":            dt,
         }
 

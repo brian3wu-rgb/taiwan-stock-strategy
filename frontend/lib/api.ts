@@ -18,6 +18,8 @@ export interface ScanResult {
   ma100:           number | null
   cross_proximity: number | null   // 越小 = 越接近交叉點
   volume_ratio:    number | null   // 今日量 / 20日均量
+  change:          number | null   // 漲跌點數
+  change_pct:      number | null   // 漲跌幅 %
   scan_date:       string
 }
 

@@ -54,6 +54,21 @@ function StatCard({ label, value, color }: { label: string; value: number | stri
   )
 }
 
+// 漲跌顯示格式（台股慣例：漲=紅，跌=綠）
+function ChangeDisplay({ change, changePct }: { change: number | null; changePct: number | null }) {
+  if (change == null || changePct == null) return <span className="text-[#8b949e]">—</span>
+  const up    = change >= 0
+  const color = up ? 'text-red-400' : 'text-green-400'
+  const arrow = up ? '▲' : '▼'
+  const sign  = up ? '+' : ''
+  return (
+    <span className={`${color} font-mono`}>
+      {arrow} {sign}{change.toFixed(2)}<br />
+      <span className="text-[9px]">({sign}{changePct.toFixed(2)}%)</span>
+    </span>
+  )
+}
+
 // ─────────────────────────────────────────────
 //  美股股票卡片
 // ─────────────────────────────────────────────
@@ -117,10 +132,16 @@ function USStockCard({ stock, rank }: { stock: ScanResult; rank: number }) {
       </div>
 
       {/* ── 底部數據 ── */}
-      <div className="px-3 py-2 border-t border-[#21262d] grid grid-cols-4 gap-1 text-center">
+      <div className="px-3 py-2 border-t border-[#21262d] grid grid-cols-5 gap-1 text-center">
         <div>
           <div className="text-[9px] text-[#8b949e]">收盤 USD</div>
           <div className="font-mono text-xs font-semibold">{stock.price.toFixed(2)}</div>
+        </div>
+        <div>
+          <div className="text-[9px] text-[#8b949e]">漲跌</div>
+          <div className="text-xs leading-tight">
+            <ChangeDisplay change={stock.change} changePct={stock.change_pct} />
+          </div>
         </div>
         <div>
           <div className="text-[9px] text-[#8b949e]">MA5</div>

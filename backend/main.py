@@ -92,6 +92,8 @@ class ScanResult(BaseModel):
     ma100:           Optional[float] = None
     cross_proximity: Optional[float] = None  # 越小越接近交叉點
     volume_ratio:    Optional[float] = None  # 今日量 / 20日均量
+    change:          Optional[float] = None  # 漲跌點數
+    change_pct:      Optional[float] = None  # 漲跌幅 %
     scan_date:       str
 
 

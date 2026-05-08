@@ -97,6 +97,8 @@ def init_db() -> None:
     _add_column_if_missing(cur, "scan_results", "cross_proximity", "REAL")
     _add_column_if_missing(cur, "scan_results", "volume_ratio",    "REAL")
     _add_column_if_missing(cur, "scan_results", "market",          "TEXT DEFAULT 'TW'")
+    _add_column_if_missing(cur, "scan_results", "change",          "REAL DEFAULT 0")
+    _add_column_if_missing(cur, "scan_results", "change_pct",      "REAL DEFAULT 0")
 
     # ── 掃描日誌表 ───────────────────────────────
     cur.execute(f"""
@@ -133,12 +135,14 @@ def save_scan_results(results: List[Dict], scan_date: str, market: str = "TW") -
     for r in results:
         cur.execute(f"""
             INSERT INTO scan_results
-              (symbol, name, signal, price, ma5, ma100, cross_proximity, volume_ratio, scan_date, market)
-            VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph})
+              (symbol, name, signal, price, ma5, ma100, cross_proximity, volume_ratio,
+               change, change_pct, scan_date, market)
+            VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph})
         """, (
             r["symbol"], r["name"], r["signal"], r["price"],
             r.get("ma5"), r.get("ma100"),
             r.get("cross_proximity"), r.get("volume_ratio"),
+            r.get("change", 0.0), r.get("change_pct", 0.0),
             scan_date, market,
         ))
 
@@ -171,7 +175,7 @@ def get_latest_scan_results(market: str = "TW") -> List[Dict]:
     cur  = conn.cursor()
     cur.execute(f"""
         SELECT symbol, name, signal, price, ma5, ma100,
-               cross_proximity, volume_ratio, scan_date
+               cross_proximity, volume_ratio, change, change_pct, scan_date
         FROM scan_results
         WHERE market = {ph}
           AND scan_date = (SELECT MAX(scan_date) FROM scan_results WHERE market = {ph})
