@@ -573,7 +573,6 @@ function SimulatePage() {
                     <th className="px-3 py-2">走勢</th>
                     <th className="px-3 py-2">PPP</th>
                     <th className="px-3 py-2">短期訊號</th>
-                    <th className="px-3 py-2 whitespace-nowrap text-orange-300">MA100穿越</th>
                     <th className="px-3 py-2 border-l-2 border-[#58a6ff]/30 text-blue-300">🤖 持倉</th>
                     <th className="px-3 py-2 text-right text-blue-300">進場價</th>
                     <th className="px-3 py-2 text-right text-blue-300 whitespace-nowrap">損益(TWD)</th>
@@ -616,11 +615,6 @@ function SimulatePage() {
                         <td className="px-3 py-2"><SigBadge text={row.trend} type={isBull ? 'sig-long' : 'sig-short'} /></td>
                         <td className="px-3 py-2 max-w-[140px]"><span className="text-[11px] text-[#8b949e] leading-tight block whitespace-normal">{row.ppp}</span></td>
                         <td className="px-3 py-2 max-w-[180px]"><SigBadge text={row.sig} type={sigClass(row.sig)} /></td>
-                        <td className="px-3 py-2 whitespace-nowrap">
-                          {row.cross_sig === 'LONG'  && <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-red-950 text-red-400 border border-red-700">⚾ 突破</span>}
-                          {row.cross_sig === 'SHORT' && <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-green-950 text-green-400 border border-green-700">🥎 跌破</span>}
-                          {!row.cross_sig && <span className="text-[#30363d]">—</span>}
-                        </td>
                         <td className={`px-3 py-2 border-l-2 border-[#58a6ff]/20 ${holdColor(row.auto_hold)}`}>{row.auto_hold}</td>
                         <td className="px-3 py-2 text-right font-mono text-[#8b949e]">{fmtPrice(row.auto_entry || null, isUS)}</td>
                         <td className={`px-3 py-2 text-right font-mono whitespace-nowrap ${pnlColor(autoPnl)}`}>{fmtPnl(autoPnl)}</td>
