@@ -236,8 +236,8 @@ export default function HomePage() {
         {/* ── 統計卡 ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <StatCard label="掃描結果" value={data?.total ?? 0}       color="text-white" />
-          <StatCard label="做多訊號" value={longCount}               color="text-green-400" />
-          <StatCard label="做空訊號" value={shortCount}              color="text-red-400" />
+          <StatCard label="做多訊號" value={longCount}               color="text-red-400" />
+          <StatCard label="做空訊號" value={shortCount}              color="text-green-400" />
           <StatCard label="掃描日期" value={data?.scan_date ?? '—'}  color="text-[#e3b341]" />
         </div>
 
