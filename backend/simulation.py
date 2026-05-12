@@ -245,27 +245,27 @@ def _k_state(k: float, prev_k: float) -> str:
 def _trend(ma5: float, ma100: float) -> str:
     if pd.isna(ma5) or pd.isna(ma100):
         return "—"
-    return "🟢多頭趨勢" if ma5 >= ma100 else "🔴空頭趨勢"
+    return "🔴多頭趨勢" if ma5 >= ma100 else "🟢空頭趨勢"
 
 
 def _ppp(trend: str, close: float, ma5: float, ma5_prev: float,
          ma20: float, ma60: float, ma100: float) -> str:
     """PPP 指標（對齊 Google Sheet P 欄公式）。
-    🟢多頭趨勢：均線多頭排列(MA5>MA20>MA60>MA100) + 下半身(close>MA5) → 做多
+    🔴多頭趨勢：均線多頭排列(MA5>MA20>MA60>MA100) + 下半身(close>MA5) → 做多
                 收盤<MA5 或 MA5 下彎(MA5<prev_MA5) → 多單平倉
-    🔴空頭趨勢：均線空頭排列(MA5<MA20<MA60<MA100) + 反下半身(close<MA5) → 做空
+    🟢空頭趨勢：均線空頭排列(MA5<MA20<MA60<MA100) + 反下半身(close<MA5) → 做空
                 收盤>MA5 或 MA5 上彎(MA5>prev_MA5) → 空單回補
     """
     if any(pd.isna(v) for v in [ma5, ma20, ma60, ma100]):
         return "⌛觀望/整理中"
 
-    if trend == "🟢多頭趨勢":
+    if trend == "🔴多頭趨勢":
         if ma5 > ma20 > ma60 > ma100 and close > ma5:
             return "⚾做多：強勢PPP+下半身"
         if close < ma5 or (not pd.isna(ma5_prev) and ma5 < ma5_prev):
             return "✋多單平倉：反下半身出現"
 
-    elif trend == "🔴空頭趨勢":
+    elif trend == "🟢空頭趨勢":
         if ma5 < ma20 < ma60 < ma100 and close < ma5:
             return "🥎做空：跌勢PPP+反下半身"
         if close > ma5 or (not pd.isna(ma5_prev) and ma5 > ma5_prev):
