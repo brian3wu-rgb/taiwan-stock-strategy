@@ -48,12 +48,20 @@ function fmtPnl(v: number) {
   return `${v > 0 ? '+' : '-'}NT$${Math.abs(v).toLocaleString()}`
 }
 
+/** 從 cost 欄位反推進場匯率（cost = entry_price × shares × usd_twd）；備援 32 */
+function getUsdTwd(t: Trade): number {
+  if (t.market !== 'US') return 1
+  if (t.cost && t.cost > 0 && t.entry_price && t.entry_price > 0 && t.shares && t.shares > 0)
+    return t.cost / (t.entry_price * t.shares)
+  return 32   // fallback
+}
+
 function calcRealized(t: Trade): number {
   if (!t.exit_price || !t.entry_price || !t.shares) return 0
   const raw = t.direction === '多單'
     ? (t.exit_price - t.entry_price) * t.shares
     : (t.entry_price - t.exit_price) * t.shares
-  return Math.round(raw)
+  return Math.round(raw * getUsdTwd(t))
 }
 
 // ─────────────────────────────────────────────
@@ -280,7 +288,12 @@ export default function TradesPage() {
 
                         {/* 進場價 */}
                         <td className="px-4 py-3 text-right font-mono">
-                          {t.entry_price != null ? t.entry_price.toLocaleString() : '—'}
+                          {t.entry_price != null ? (
+                            <>
+                              {t.entry_price.toLocaleString()}
+                              {t.market === 'US' && <span className="text-[9px] text-[#8b949e] ml-0.5">USD</span>}
+                            </>
+                          ) : '—'}
                         </td>
 
                         {/* 股數 */}
@@ -295,13 +308,25 @@ export default function TradesPage() {
 
                         {/* 出場價 */}
                         <td className="px-4 py-3 text-right font-mono">
-                          {t.exit_price != null ? t.exit_price.toLocaleString() : '—'}
+                          {t.exit_price != null ? (
+                            <>
+                              {t.exit_price.toLocaleString()}
+                              {t.market === 'US' && <span className="text-[9px] text-[#8b949e] ml-0.5">USD</span>}
+                            </>
+                          ) : '—'}
                         </td>
 
                         {/* 損益 */}
                         <td className="px-4 py-3 text-right font-mono whitespace-nowrap">
                           {pnl !== null ? (
-                            <span className={pnlColor(pnl)}>{fmtPnl(pnl)}</span>
+                            <div>
+                              <span className={pnlColor(pnl)}>{fmtPnl(pnl)}</span>
+                              {t.market === 'US' && (
+                                <div className="text-[9px] text-[#8b949e]">
+                                  ×{getUsdTwd(t).toFixed(1)}
+                                </div>
+                              )}
+                            </div>
                           ) : (
                             <Link href={simHref}
                               className="text-yellow-500 hover:text-yellow-300 text-xs whitespace-nowrap transition-colors">
