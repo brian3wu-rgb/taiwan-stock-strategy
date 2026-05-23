@@ -23,6 +23,7 @@ import { getChartData } from '@/lib/api'
 interface Props {
   symbol: string
   height?: number
+  showPriceScale?: boolean   // 顯示右側價格軸（模擬交易頁用）
 }
 
 const COLORS = {
@@ -35,7 +36,7 @@ const COLORS = {
   ma100:    '#ec407a',
 }
 
-export default function MiniChart({ symbol, height = 190 }: Props) {
+export default function MiniChart({ symbol, height = 190, showPriceScale = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef     = useRef<IChartApi | null>(null)
   const [loading, setLoading] = useState(true)
@@ -62,7 +63,7 @@ export default function MiniChart({ symbol, height = 190 }: Props) {
           height,
           layout: {
             background: { color: COLORS.bg },
-            textColor:  'transparent',
+            textColor:  showPriceScale ? '#8b949e' : 'transparent',
           },
           grid: {
             vertLines: { color: COLORS.grid },
@@ -70,8 +71,9 @@ export default function MiniChart({ symbol, height = 190 }: Props) {
           },
           crosshair: { mode: CrosshairMode.Hidden },
           rightPriceScale: {
-            visible:     false,
-            borderColor: 'transparent',
+            visible:     showPriceScale,
+            borderColor: showPriceScale ? '#30363d' : 'transparent',
+            textColor:   '#8b949e',
           },
           leftPriceScale: { visible: false },
           timeScale: {

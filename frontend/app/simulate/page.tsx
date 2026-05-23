@@ -502,7 +502,7 @@ function SimulatePage() {
                 <span className="flex items-center gap-1"><span className="inline-block w-4 h-[2px] rounded" style={{ backgroundColor: '#ec407a' }} />MA100</span>
               </div>
             </div>
-            <MiniChart symbol={data!.symbol_full} height={320} />
+            <MiniChart symbol={data!.symbol_full} height={320} showPriceScale />
           </div>
         )}
 
