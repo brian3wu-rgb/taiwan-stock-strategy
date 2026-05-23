@@ -737,12 +737,21 @@ def _download_us_batch_sync(symbols: List[str]) -> Dict[str, pd.DataFrame]:
 
 
 def _process_us_batch(batch_symbols: List[str], name_map: Dict[str, str]) -> List[Dict]:
-    """[同步，在執行緒池中執行] 美股批次下載 + 分析。"""
+    """
+    [同步，在執行緒池中執行] 美股批次下載 + 分析。
+    使用美股專屬選股條件：
+      - signal_window=3（3日突破窗口）
+      - signal_threshold=0.01（1.0% 趨勢不明閾值）
+    """
     batch_data = _download_us_batch_sync(batch_symbols)
     results: List[Dict] = []
     for sym in batch_symbols:
         if sym in batch_data:
-            r = _analyze_stock(sym, name_map[sym], batch_data[sym])
+            r = _analyze_stock(
+                sym, name_map[sym], batch_data[sym],
+                signal_window=3,
+                signal_threshold=0.01,
+            )
             if r:
                 results.append(r)
                 logger.info("  ✅ US %s (%s) → %s  proximity=%.4f",
