@@ -281,8 +281,8 @@ export default function USScanPage() {
               onClick={() => setFilter(f)}
               className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
                 filter === f
-                  ? f === 'LONG'  ? 'bg-green-600 text-white'
-                  : f === 'SHORT' ? 'bg-red-600 text-white'
+                  ? f === 'LONG'  ? 'bg-red-600 text-white'
+                  : f === 'SHORT' ? 'bg-green-600 text-white'
                   :                 'bg-blue-600 text-white'
                   : 'bg-[#21262d] text-[#8b949e] hover:text-white border border-[#30363d]'
               }`}

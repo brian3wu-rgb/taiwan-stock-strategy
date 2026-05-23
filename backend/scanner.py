@@ -469,13 +469,23 @@ def _download_batch_sync(symbols: List[str]) -> Dict[str, pd.DataFrame]:
 #  單股分析
 # ─────────────────────────────────────────────
 
-def _analyze_stock(symbol: str, name: str, df: pd.DataFrame) -> Optional[Dict]:
+def _analyze_stock(
+    symbol: str,
+    name: str,
+    df: pd.DataFrame,
+    signal_window: int = 5,
+    signal_threshold: float = 0.003,
+    min_price: float = 0.0,
+) -> Optional[Dict]:
     """
     分析單支股票：
       1. 計算 MA5、MA100
       2. 成交量過濾（當天量 > 20日均量）
       3. 判斷做多 / 做空訊號
       4. 計算 cross_proximity 與 volume_ratio
+
+    台股參數：signal_window=2, signal_threshold=0.015, min_price=10
+    美股參數：預設值（window=5, threshold=0.003, min_price=0）
     """
     try:
         required = ["Open", "High", "Low", "Close"]
@@ -492,8 +502,8 @@ def _analyze_stock(symbol: str, name: str, df: pd.DataFrame) -> Optional[Dict]:
         # ── 成交量比率（僅計算供顯示用，不過濾）───────────────────────────
         _, vol_ratio = check_volume_filter(df, period=20)
 
-        # ── 訊號判斷（取最後 6 根 K 線，供5日突破判斷用）──
-        recent = df.tail(6)
+        # ── 訊號判斷（取最後 window+1 根 K 線）──
+        recent = df.tail(signal_window + 1)
         today  = recent.iloc[-1]
 
         price = float(today["Close"])
@@ -502,6 +512,10 @@ def _analyze_stock(symbol: str, name: str, df: pd.DataFrame) -> Optional[Dict]:
         dt    = str(df.index[-1].date())
 
         if ma5 is None or ma100 is None:
+            return None
+
+        # ── 股價下限過濾 ──────────────────────────────────────────────
+        if price <= min_price:
             return None
 
         # ── 漲跌計算 ──────────────────────────────────────────────────
@@ -516,9 +530,9 @@ def _analyze_stock(symbol: str, name: str, df: pd.DataFrame) -> Optional[Dict]:
         proximity = compute_cross_proximity(ma5, ma100)
 
         signal: Optional[str] = None
-        if check_long_signal(recent):
+        if check_long_signal(recent, window=signal_window, threshold=signal_threshold):
             signal = "LONG"
-        elif check_short_signal(recent):
+        elif check_short_signal(recent, window=signal_window, threshold=signal_threshold):
             signal = "SHORT"
 
         if signal is None:
@@ -549,17 +563,23 @@ def _analyze_stock(symbol: str, name: str, df: pd.DataFrame) -> Optional[Dict]:
 
 def _process_batch(batch_symbols: List[str], name_map: Dict[str, str]) -> List[Dict]:
     """
-    [同步，在執行緒池中執行]
-    1. 下載一批股票資料
-    2. 逐支分析訊號
-    3. 批次結束後 sleep，做速率限制
+    [同步，在執行緒池中執行] 台股批次處理。
+    使用台股專屬選股條件：
+      - signal_window=2（2日突破窗口）
+      - signal_threshold=0.015（1.5% 趨勢不明閾值）
+      - min_price=10（股價 > 10 元）
     """
     batch_data = _download_batch_sync(batch_symbols)
     results: List[Dict] = []
 
     for sym in batch_symbols:
         if sym in batch_data:
-            r = _analyze_stock(sym, name_map[sym], batch_data[sym])
+            r = _analyze_stock(
+                sym, name_map[sym], batch_data[sym],
+                signal_window=2,
+                signal_threshold=0.015,
+                min_price=10.0,
+            )
             if r:
                 results.append(r)
                 logger.info("  ✅ %s (%s) → %s  proximity=%.4f  vol_ratio=%.2f",
