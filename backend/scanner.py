@@ -476,16 +476,17 @@ def _analyze_stock(
     signal_window: int = 5,
     signal_threshold: float = 0.003,
     min_price: float = 0.0,
+    min_vol_ratio: float = 0.0,
 ) -> Optional[Dict]:
     """
     分析單支股票：
       1. 計算 MA5、MA100
-      2. 成交量過濾（當天量 > 20日均量）
+      2. 成交量過濾（量比 >= min_vol_ratio）
       3. 判斷做多 / 做空訊號
       4. 計算 cross_proximity 與 volume_ratio
 
-    台股參數：signal_window=2, signal_threshold=0.015, min_price=10
-    美股參數：預設值（window=5, threshold=0.003, min_price=0）
+    台股參數：signal_window=2, signal_threshold=0.015, min_price=10, min_vol_ratio=1.0
+    美股參數：預設值（window=3, threshold=0.008, min_price=0, min_vol_ratio=0）
     """
     try:
         required = ["Open", "High", "Low", "Close"]
@@ -499,8 +500,10 @@ def _analyze_stock(
         df["MA5"]   = calculate_ma(df["Close"], 5)
         df["MA100"] = calculate_ma(df["Close"], 100)
 
-        # ── 成交量比率（僅計算供顯示用，不過濾）───────────────────────────
+        # ── 成交量比率（計算 + 過濾）──────────────────────────────────────
         _, vol_ratio = check_volume_filter(df, period=20)
+        if vol_ratio < min_vol_ratio:
+            return None
 
         # ── 訊號判斷（取最後 window+1 根 K 線）──
         recent = df.tail(signal_window + 1)
@@ -568,6 +571,7 @@ def _process_batch(batch_symbols: List[str], name_map: Dict[str, str]) -> List[D
       - signal_window=2（2日突破窗口）
       - signal_threshold=0.015（1.5% 趨勢不明閾值）
       - min_price=10（股價 > 10 元）
+      - min_vol_ratio=1.0（量比 >= 1.0x，突破當天須放量）
     """
     batch_data = _download_batch_sync(batch_symbols)
     results: List[Dict] = []
@@ -579,6 +583,7 @@ def _process_batch(batch_symbols: List[str], name_map: Dict[str, str]) -> List[D
                 signal_window=2,
                 signal_threshold=0.015,
                 min_price=10.0,
+                min_vol_ratio=1.0,
             )
             if r:
                 results.append(r)
