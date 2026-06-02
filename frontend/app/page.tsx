@@ -244,7 +244,7 @@ export default function HomePage() {
               📊 模擬交易
             </Link>
             <button
-              onClick={load}
+              onClick={() => { setDateIdx(0); load() }}
               className="px-3 py-1.5 text-xs bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] rounded-lg transition-colors"
             >
               重新整理
