@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { getUSScanResults, triggerUSScan, getUSScanStatus, ScanResult, ScanResponse } from '@/lib/api'
+import { getUSScanResults, triggerUSScan, getUSScanStatus, getUSScanDates, ScanResult, ScanResponse } from '@/lib/api'
 import SignalBadge from '@/components/SignalBadge'
 import ScanProgressBar from '@/components/ScanProgressBar'
 import MiniChart from '@/components/MiniChart'
@@ -174,12 +174,14 @@ export default function USScanPage() {
   const [filter,   setFilter]   = useState<FilterType>('ALL')
   const [error,    setError]    = useState<string | null>(null)
   const [scanning, setScanning] = useState(false)
+  const [dates,    setDates]    = useState<string[]>([])
+  const [dateIdx,  setDateIdx]  = useState(0)   // 0 = 最新
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (date?: string) => {
     try {
       setLoading(true)
       setError(null)
-      const res = await getUSScanResults()
+      const res = await getUSScanResults(undefined, date)
       setData(res)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '無法連接後端，請確認服務已啟動。')
@@ -189,6 +191,18 @@ export default function USScanPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // 載入可用日期清單
+  useEffect(() => {
+    getUSScanDates().then(r => setDates(r.dates)).catch(() => {})
+  }, [])
+
+  function handleDateNav(dir: 'prev' | 'next') {
+    const newIdx = dir === 'next' ? dateIdx - 1 : dateIdx + 1
+    if (newIdx < 0 || newIdx >= dates.length) return
+    setDateIdx(newIdx)
+    load(dates[newIdx])
+  }
 
   async function handleScan() {
     try {
@@ -223,10 +237,25 @@ export default function USScanPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {data?.scan_date && (
-              <span className="text-xs text-[#8b949e] hidden sm:block">
-                上次掃描：{data.scan_date}
-              </span>
+            {/* 日期導航 */}
+            {dates.length > 0 && (
+              <div className="hidden sm:flex items-center gap-1">
+                <button
+                  onClick={() => handleDateNav('prev')}
+                  disabled={dateIdx >= dates.length - 1}
+                  className="w-6 h-6 flex items-center justify-center rounded text-[#8b949e] hover:text-white hover:bg-[#30363d] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  title="往前一天"
+                >‹</button>
+                <span className="text-xs text-[#8b949e] min-w-[80px] text-center">
+                  {data?.scan_date ?? dates[dateIdx]}
+                </span>
+                <button
+                  onClick={() => handleDateNav('next')}
+                  disabled={dateIdx <= 0}
+                  className="w-6 h-6 flex items-center justify-center rounded text-[#8b949e] hover:text-white hover:bg-[#30363d] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  title="往後一天"
+                >›</button>
+              </div>
             )}
             <Link
               href="/"

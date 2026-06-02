@@ -28,6 +28,7 @@ load_dotenv()
 from database import (
     init_db, save_scan_results, get_latest_scan_results,
     get_last_scan_date, log_scan,
+    get_scan_dates, get_results_by_date_market,
 )
 from scanner import run_scan_async, run_us_scan_async, get_chart_data
 from scheduler import start_scheduler
@@ -358,25 +359,42 @@ def health():
     return {"status": "ok", "time": datetime.now().isoformat()}
 
 
+@app.get("/scan/dates", tags=["Scan"])
+def get_tw_scan_dates():
+    """取得台股最近 7 個有資料的掃描日期（由新到舊）。"""
+    return {"dates": get_scan_dates(market="TW", limit=7)}
+
+
+@app.get("/scan/us/dates", tags=["Scan"])
+def get_us_scan_dates():
+    """取得美股最近 7 個有資料的掃描日期（由新到舊）。"""
+    return {"dates": get_scan_dates(market="US", limit=7)}
+
+
 @app.get("/scan", response_model=ScanResponse, tags=["Scan"])
 async def get_scan(
     force: bool = False,
-    signal: Optional[str] = None,         # 篩選 "LONG" | "SHORT"
+    signal: Optional[str] = None,
+    date: Optional[str] = None,           # 指定日期 YYYY-MM-DD，不填則取最新
     background_tasks: BackgroundTasks = None,
 ):
     """
-    取得最新掃描結果（已依 cross_proximity 升冪排序）。
+    取得台股掃描結果（已依 cross_proximity 升冪排序）。
 
     參數：
-      - force=true   → 同時在背景觸發新掃描（先回傳舊資料）
-      - signal=LONG  → 只回傳做多訊號
-      - signal=SHORT → 只回傳做空訊號
+      - date=YYYY-MM-DD → 查詢指定日期（不填則取最新）
+      - force=true      → 同時在背景觸發新掃描（先回傳舊資料）
+      - signal=LONG     → 只回傳做多訊號
     """
     if force and not _scan_status["running"] and background_tasks:
         background_tasks.add_task(_background_scan)
 
-    rows      = get_latest_scan_results(market="TW")
-    scan_date = get_last_scan_date(market="TW")
+    if date:
+        rows      = get_results_by_date_market(date, market="TW")
+        scan_date = date if rows else get_last_scan_date(market="TW")
+    else:
+        rows      = get_latest_scan_results(market="TW")
+        scan_date = get_last_scan_date(market="TW")
 
     results = [ScanResult(**r) for r in rows]
 
@@ -408,11 +426,18 @@ def get_scan_status():
 # ─────────────────────────────────────────────
 
 @app.get("/scan/us", response_model=ScanResponse, tags=["Scan"])
-async def get_us_scan(signal: Optional[str] = None):
-    """取得最新美股掃描結果（SOX + Nasdaq-100，已依 cross_proximity 升冪排序）。"""
-    rows      = get_latest_scan_results(market="US")
-    scan_date = get_last_scan_date(market="US")
-    results   = [ScanResult(**r) for r in rows]
+async def get_us_scan(
+    signal: Optional[str] = None,
+    date: Optional[str] = None,           # 指定日期 YYYY-MM-DD，不填則取最新
+):
+    """取得美股掃描結果（SOX + Nasdaq-100，已依 cross_proximity 升冪排序）。"""
+    if date:
+        rows      = get_results_by_date_market(date, market="US")
+        scan_date = date if rows else get_last_scan_date(market="US")
+    else:
+        rows      = get_latest_scan_results(market="US")
+        scan_date = get_last_scan_date(market="US")
+    results = [ScanResult(**r) for r in rows]
     if signal and signal.upper() in ("LONG", "SHORT"):
         results = [r for r in results if r.signal == signal.upper()]
     return ScanResponse(results=results, scan_date=scan_date, total=len(results))

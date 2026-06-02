@@ -221,3 +221,42 @@ def get_results_by_date(date: str) -> List[Dict]:
         rows = [dict(zip(cols, r)) for r in rows_raw]
     conn.close()
     return rows
+
+
+def get_scan_dates(market: str = "TW", limit: int = 7) -> List[str]:
+    """取得最近 N 個有資料的掃描日期（由新到舊）。"""
+    ph   = "%s" if _is_postgres() else "?"
+    conn = _connect()
+    cur  = conn.cursor()
+    cur.execute(f"""
+        SELECT DISTINCT scan_date FROM scan_results
+        WHERE market = {ph}
+        ORDER BY scan_date DESC
+        LIMIT {ph}
+    """, (market, limit))
+    rows = cur.fetchall()
+    conn.close()
+    return [r[0] for r in rows]
+
+
+def get_results_by_date_market(scan_date: str, market: str = "TW") -> List[Dict]:
+    """取得指定日期 + 市場的掃描結果。"""
+    ph   = "%s" if _is_postgres() else "?"
+    conn = _connect()
+    cur  = conn.cursor()
+    cur.execute(f"""
+        SELECT symbol, name, signal, price, ma5, ma100,
+               cross_proximity, volume_ratio, change, change_pct, scan_date
+        FROM scan_results
+        WHERE scan_date = {ph} AND market = {ph}
+        ORDER BY cross_proximity ASC, symbol ASC
+    """, (scan_date, market))
+    if _is_postgres():
+        cols = [d.name for d in cur.description]
+        rows = [dict(zip(cols, row)) for row in cur.fetchall()]
+    else:
+        rows_raw = cur.fetchall()
+        cols = [d[0] for d in cur.description]
+        rows = [dict(zip(cols, r)) for r in rows_raw]
+    conn.close()
+    return rows

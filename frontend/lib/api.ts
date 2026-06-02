@@ -92,9 +92,18 @@ async function del<T>(path: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
-/** 取得最新掃描結果 */
-export const getScanResults  = (signal?: string) =>
-  get<ScanResponse>(`/scan${signal ? `?signal=${signal}` : ''}`)
+/** 取得台股掃描結果（date 不傳則取最新） */
+export const getScanResults = (signal?: string, date?: string) => {
+  const params = new URLSearchParams()
+  if (signal) params.set('signal', signal)
+  if (date)   params.set('date', date)
+  const qs = params.toString()
+  return get<ScanResponse>(`/scan${qs ? `?${qs}` : ''}`)
+}
+
+/** 取得台股可用掃描日期（最近 7 天） */
+export const getTWScanDates = () =>
+  get<{ dates: string[] }>('/scan/dates')
 
 /** 觸發背景掃描 */
 export const triggerScan     = () => post<{ message: string }>('/scan/trigger')
@@ -178,9 +187,18 @@ export interface ExitIn {
   exit_price: number
 }
 
-/** 取得美股掃描結果 */
-export const getUSScanResults  = (signal?: string) =>
-  get<ScanResponse>(`/scan/us${signal ? `?signal=${signal}` : ''}`)
+/** 取得美股掃描結果（date 不傳則取最新） */
+export const getUSScanResults = (signal?: string, date?: string) => {
+  const params = new URLSearchParams()
+  if (signal) params.set('signal', signal)
+  if (date)   params.set('date', date)
+  const qs = params.toString()
+  return get<ScanResponse>(`/scan/us${qs ? `?${qs}` : ''}`)
+}
+
+/** 取得美股可用掃描日期（最近 7 天） */
+export const getUSScanDates = () =>
+  get<{ dates: string[] }>('/scan/us/dates')
 
 /** 觸發美股背景掃描 */
 export const triggerUSScan     = () => post<{ message: string }>('/scan/us/trigger')
