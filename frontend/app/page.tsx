@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { getScanResults, triggerScan, getTWScanDates, ScanResult, ScanResponse } from '@/lib/api'
+import { CONCEPTS, CONCEPT_BADGE, CONCEPT_ACTIVE, getConceptsForSymbol } from '@/lib/tw-concepts'
 import SignalBadge from '@/components/SignalBadge'
 import ScanProgressBar from '@/components/ScanProgressBar'
 import MiniChart from '@/components/MiniChart'
@@ -50,13 +51,12 @@ function StockCard({ stock, rank }: { stock: ScanResult; rank: number }) {
 
   const shortCode = stock.symbol.replace('.TW', '').replace('.TWO', '')
   const market    = stock.symbol.endsWith('.TWO') ? 'OTC' : 'TSE'
+  const concepts  = getConceptsForSymbol(stock.symbol).slice(0, 2) // 最多顯示 2 個
 
-  // 點卡片 → 策略選股頁（模擬交易），market 統一傳 TW（含上櫃）
   function handleCardClick() {
     router.push(`/simulate?symbol=${shortCode}&market=TW`)
   }
 
-  // 全圖按鈕只跳 K 線，不觸發卡片 onClick
   function handleChartClick(e: React.MouseEvent) {
     e.stopPropagation()
     router.push(`/chart/${encodeURIComponent(stock.symbol)}?signal=${stock.signal}&date=${stock.scan_date}`)
@@ -67,14 +67,25 @@ function StockCard({ stock, rank }: { stock: ScanResult; rank: number }) {
       className="bg-[#161b22] border border-[#30363d] rounded-xl overflow-hidden flex flex-col hover:border-[#58a6ff]/60 hover:bg-[#1c2128] transition-all cursor-pointer"
       onClick={handleCardClick}
     >
-
       {/* ── 卡片標頭 ── */}
       <div className="px-3 pt-3 pb-2 flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[10px] text-[#8b949e] shrink-0">#{rank}</span>
-          <span className="font-mono font-bold text-[#58a6ff] text-sm">{shortCode}</span>
-          <span className="text-[10px] text-[#8b949e] shrink-0">{market}</span>
-          <span className="text-sm font-medium truncate">{stock.name}</span>
+        <div className="flex flex-col gap-1 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[10px] text-[#8b949e] shrink-0">#{rank}</span>
+            <span className="font-mono font-bold text-[#58a6ff] text-sm">{shortCode}</span>
+            <span className="text-[10px] text-[#8b949e] shrink-0">{market}</span>
+            <span className="text-sm font-medium truncate">{stock.name}</span>
+          </div>
+          {/* ── 概念 Badge ── */}
+          {concepts.length > 0 && (
+            <div className="flex gap-1 flex-wrap">
+              {concepts.map(c => (
+                <span key={c} className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${CONCEPT_BADGE[c]}`}>
+                  {c}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <SignalBadge signal={stock.signal} />
@@ -137,13 +148,14 @@ function StockCard({ stock, rank }: { stock: ScanResult; rank: number }) {
 //  主頁
 // ─────────────────────────────────────────────
 export default function HomePage() {
-  const [data,      setData]      = useState<ScanResponse | null>(null)
-  const [loading,   setLoading]   = useState(true)
-  const [filter,    setFilter]    = useState<FilterType>('ALL')
-  const [error,     setError]     = useState<string | null>(null)
-  const [scanning,  setScanning]  = useState(false)
-  const [dates,     setDates]     = useState<string[]>([])
-  const [dateIdx,   setDateIdx]   = useState(0)   // 0 = 最新
+  const [data,          setData]          = useState<ScanResponse | null>(null)
+  const [loading,       setLoading]       = useState(true)
+  const [filter,        setFilter]        = useState<FilterType>('ALL')
+  const [conceptFilter, setConceptFilter] = useState<string>('ALL')
+  const [error,         setError]         = useState<string | null>(null)
+  const [scanning,      setScanning]      = useState(false)
+  const [dates,         setDates]         = useState<string[]>([])
+  const [dateIdx,       setDateIdx]       = useState(0)
 
   const load = useCallback(async (date?: string) => {
     try {
@@ -158,7 +170,6 @@ export default function HomePage() {
     }
   }, [])
 
-  // 載入可用日期清單
   useEffect(() => {
     getTWScanDates().then(r => setDates(r.dates)).catch(() => {})
   }, [])
@@ -190,7 +201,20 @@ export default function HomePage() {
   const allResults = data?.results ?? []
   const longCount  = allResults.filter(r => r.signal === 'LONG').length
   const shortCount = allResults.filter(r => r.signal === 'SHORT').length
-  const filtered   = filter === 'ALL' ? allResults : allResults.filter(r => r.signal === filter)
+
+  // 先套訊號篩選，再套概念篩選
+  const signalFiltered = filter === 'ALL' ? allResults : allResults.filter(r => r.signal === filter)
+  const filtered = conceptFilter === 'ALL'
+    ? signalFiltered
+    : conceptFilter === '其他'
+      ? signalFiltered.filter(r => getConceptsForSymbol(r.symbol).length === 0)
+      : signalFiltered.filter(r => getConceptsForSymbol(r.symbol).includes(conceptFilter))
+
+  // 計算各概念在當前訊號篩選下的數量（有資料才顯示）
+  const conceptCounts = Object.fromEntries(
+    CONCEPTS.map(c => [c, signalFiltered.filter(r => getConceptsForSymbol(r.symbol).includes(c)).length])
+  )
+  const otherCount = signalFiltered.filter(r => getConceptsForSymbol(r.symbol).length === 0).length
 
   return (
     <div className="min-h-screen bg-[#0d1117]">
@@ -205,7 +229,6 @@ export default function HomePage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {/* 日期導航 */}
             {dates.length > 0 && (
               <div className="hidden sm:flex items-center gap-1">
                 <button
@@ -225,22 +248,13 @@ export default function HomePage() {
                 >›</button>
               </div>
             )}
-            <Link
-              href="/scan-us"
-              className="px-3 py-1.5 text-xs bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] rounded-lg transition-colors"
-            >
+            <Link href="/scan-us" className="px-3 py-1.5 text-xs bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] rounded-lg transition-colors">
               🇺🇸 美股選股
             </Link>
-            <Link
-              href="/trades"
-              className="px-3 py-1.5 text-xs bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] rounded-lg transition-colors"
-            >
+            <Link href="/trades" className="px-3 py-1.5 text-xs bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] rounded-lg transition-colors">
               📋 交易紀錄
             </Link>
-            <Link
-              href="/simulate"
-              className="px-3 py-1.5 text-xs bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] rounded-lg transition-colors"
-            >
+            <Link href="/simulate" className="px-3 py-1.5 text-xs bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] rounded-lg transition-colors">
               📊 模擬交易
             </Link>
             <button
@@ -260,7 +274,7 @@ export default function HomePage() {
         </div>
       </header>
 
-      <main className="max-w-screen-xl mx-auto px-6 py-6 space-y-5">
+      <main className="max-w-screen-xl mx-auto px-6 py-6 space-y-4">
 
         {/* ── 統計卡 ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -270,7 +284,7 @@ export default function HomePage() {
           <StatCard label="掃描日期" value={data?.scan_date ?? '—'}  color="text-[#e3b341]" />
         </div>
 
-        {/* ── 篩選標籤 ── */}
+        {/* ── 訊號篩選 ── */}
         <div className="flex gap-2">
           {(['ALL', 'LONG', 'SHORT'] as const).map(f => (
             <button
@@ -287,6 +301,54 @@ export default function HomePage() {
               {f === 'ALL' ? `全部 (${allResults.length})` : f === 'LONG' ? `做多 (${longCount})` : `做空 (${shortCount})`}
             </button>
           ))}
+        </div>
+
+        {/* ── 概念篩選 ── */}
+        <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+          {/* 全部概念 */}
+          <button
+            onClick={() => setConceptFilter('ALL')}
+            className={`whitespace-nowrap px-3 py-1 rounded-full text-xs font-semibold transition-all shrink-0 ${
+              conceptFilter === 'ALL'
+                ? 'bg-[#388bfd]/20 text-[#58a6ff] border border-[#388bfd]/40'
+                : 'bg-[#21262d] text-[#8b949e] border border-[#30363d] hover:text-white'
+            }`}
+          >
+            全部概念 ({signalFiltered.length})
+          </button>
+
+          {/* 各概念按鈕（只顯示有資料的） */}
+          {CONCEPTS.map(c => {
+            const count = conceptCounts[c]
+            if (count === 0) return null
+            return (
+              <button
+                key={c}
+                onClick={() => setConceptFilter(c)}
+                className={`whitespace-nowrap px-3 py-1 rounded-full text-xs font-semibold transition-all shrink-0 ${
+                  conceptFilter === c
+                    ? CONCEPT_ACTIVE[c]
+                    : 'bg-[#21262d] text-[#8b949e] border border-[#30363d] hover:text-white'
+                }`}
+              >
+                {c} ({count})
+              </button>
+            )
+          })}
+
+          {/* 其他 */}
+          {otherCount > 0 && (
+            <button
+              onClick={() => setConceptFilter('其他')}
+              className={`whitespace-nowrap px-3 py-1 rounded-full text-xs font-semibold transition-all shrink-0 ${
+                conceptFilter === '其他'
+                  ? 'bg-[#444c56] text-white'
+                  : 'bg-[#21262d] text-[#8b949e] border border-[#30363d] hover:text-white'
+              }`}
+            >
+              其他 ({otherCount})
+            </button>
+          )}
         </div>
 
         {/* ── 錯誤訊息 ── */}
@@ -320,7 +382,7 @@ export default function HomePage() {
         )}
       </main>
 
-      {/* ── 掃描進度監控（含漸進刷新 + 完成通知）── */}
+      {/* ── 掃描進度監控 ── */}
       <ScanProgressBar
         triggered={scanning}
         onDone={handleScanDone}
