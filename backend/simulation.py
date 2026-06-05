@@ -164,9 +164,24 @@ def _fetch_tw_stock_range(symbol: str, fetch_start: date, fetch_end: date) -> Op
     if all_rows:
         df = pd.DataFrame(all_rows).set_index("Date").sort_index()
         df = df[~df.index.duplicated(keep="first")]
+
+        # ── 補最新資料：若 TWSE 資料最後一天早於 fetch_end，用 yfinance 補缺口 ──
+        # （盤中或收盤後 TWSE 尚未更新時，yfinance 已有最新報價）
+        last_twse = df.index[-1].date()
+        if last_twse < fetch_end:
+            yf_supplement = _fetch_tw_yfinance(
+                symbol,
+                last_twse + timedelta(days=1),
+                fetch_end,
+            )
+            if yf_supplement is not None and not yf_supplement.empty:
+                df = pd.concat([df, yf_supplement])
+                df = df[~df.index.duplicated(keep="last")].sort_index()
+                logger.info("Supplemented %s with yfinance: %s → %s",
+                            symbol, last_twse, df.index[-1].date())
         return df
 
-    # TWSE API 無資料（Render 伺服器可能被封鎖）→ fallback 到 yfinance
+    # TWSE API 無資料（Render 伺服器可能被封鎖）→ 完整 fallback 到 yfinance
     logger.warning("TWSE/TPEx API returned no data for %s, falling back to yfinance", symbol)
     return _fetch_tw_yfinance(symbol, fetch_start, fetch_end)
 
