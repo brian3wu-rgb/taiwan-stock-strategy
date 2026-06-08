@@ -20,6 +20,7 @@ from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -356,7 +357,40 @@ def root():
 
 @app.get("/health", tags=["General"])
 def health():
-    return {"status": "ok", "time": datetime.now().isoformat()}
+    """健康檢查（加 no-cache header，確保 Cloudflare 不快取，Render 不休眠）"""
+    return JSONResponse(
+        content={"status": "ok", "time": datetime.now().isoformat()},
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"},
+    )
+
+
+@app.get("/scan/cron-trigger", tags=["Scan"])
+async def cron_trigger_scan(background_tasks: BackgroundTasks):
+    """
+    給 cron-job.org 用的 GET 版掃描觸發（繞過 CDN 快取問題）。
+    立即回傳 200，背景執行掃描。
+    """
+    if not _scan_status["running"]:
+        background_tasks.add_task(_background_scan)
+        _scan_status["progress"] = "cron 觸發，即將開始..."
+    return JSONResponse(
+        content={"message": "ok", "running": _scan_status["running"]},
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
+
+
+@app.get("/scan/us/cron-trigger", tags=["Scan"])
+async def cron_trigger_us_scan(background_tasks: BackgroundTasks):
+    """
+    給 cron-job.org 用的 GET 版美股掃描觸發。
+    """
+    if not _us_scan_status["running"]:
+        background_tasks.add_task(_background_us_scan)
+        _us_scan_status["progress"] = "cron 觸發，即將開始..."
+    return JSONResponse(
+        content={"message": "ok", "running": _us_scan_status["running"]},
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 
 @app.get("/scan/dates", tags=["Scan"])
